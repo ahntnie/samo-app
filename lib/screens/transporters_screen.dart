@@ -5,6 +5,7 @@ import 'package:excel/excel.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:open_file/open_file.dart';
 import 'dart:io';
+import 'dart:developer' as developer;
 
 // Cache utility class
 class CacheUtil {
@@ -448,48 +449,64 @@ class _TransporterDetailsDialogState extends State<TransporterDetailsDialog> {
 
     try {
       final transporterName = widget.transporter['name']?.toString() ?? '';
+      developer.log('Fetching transactions for transporter: "$transporterName"');
       final start = currentPage * pageSize;
       final end = start + pageSize - 1;
 
-      final transporterOrdersQuery = widget.tenantClient
+      dynamic transporterOrdersQuery = widget.tenantClient
           .from('transporter_orders')
           .select('*, product_id')
           .eq('transporter', transporterName)
-          .eq('iscancelled', false)
-          .order('created_at', ascending: false)
-          .range(start, end);
+          .eq('iscancelled', false);
 
-      final financialOrdersQuery = widget.tenantClient
+      dynamic financialOrdersQuery = widget.tenantClient
           .from('financial_orders')
           .select()
           .eq('partner_type', 'transporters')
           .eq('partner_name', transporterName)
-          .eq('iscancelled', false)
-          .order('created_at', ascending: false)
-          .range(start, end);
+          .eq('iscancelled', false);
 
-      final saleOrdersQuery = widget.tenantClient
+      dynamic saleOrdersQuery = widget.tenantClient
           .from('sale_orders')
           .select('*, product_id')
           .eq('transporter', transporterName)
-          .eq('iscancelled', false)
-          .order('created_at', ascending: false)
-          .range(start, end);
+          .eq('iscancelled', false);
 
-      final reimportOrdersQuery = widget.tenantClient
+      dynamic reimportOrdersQuery = widget.tenantClient
           .from('reimport_orders')
           .select('*, product_id')
           .eq('account', 'COD Hoàn')
-          .eq('iscancelled', false)
-          .order('created_at', ascending: false)
-          .range(start, end);
+          .eq('iscancelled', false);
 
-      final results = await Future.wait([
+      // Add date filters if dates are selected
+      if (startDate != null) {
+        transporterOrdersQuery = transporterOrdersQuery.gte('created_at', startDate!.toIso8601String());
+        financialOrdersQuery = financialOrdersQuery.gte('created_at', startDate!.toIso8601String());
+        saleOrdersQuery = saleOrdersQuery.gte('created_at', startDate!.toIso8601String());
+        reimportOrdersQuery = reimportOrdersQuery.gte('created_at', startDate!.toIso8601String());
+      }
+      if (endDate != null) {
+        final endDateTime = endDate!.add(const Duration(days: 1));
+        transporterOrdersQuery = transporterOrdersQuery.lt('created_at', endDateTime.toIso8601String());
+        financialOrdersQuery = financialOrdersQuery.lt('created_at', endDateTime.toIso8601String());
+        saleOrdersQuery = saleOrdersQuery.lt('created_at', endDateTime.toIso8601String());
+        reimportOrdersQuery = reimportOrdersQuery.lt('created_at', endDateTime.toIso8601String());
+      }
+
+      // Add order and range after all filters
+      transporterOrdersQuery = transporterOrdersQuery.order('created_at', ascending: false).range(start, end);
+      financialOrdersQuery = financialOrdersQuery.order('created_at', ascending: false).range(start, end);
+      saleOrdersQuery = saleOrdersQuery.order('created_at', ascending: false).range(start, end);
+      reimportOrdersQuery = reimportOrdersQuery.order('created_at', ascending: false).range(start, end);
+
+      developer.log('Executing queries for transporter: "$transporterName"');
+      final results = await Future.wait<dynamic>([
         transporterOrdersQuery,
         financialOrdersQuery,
         saleOrdersQuery,
         reimportOrdersQuery,
       ]);
+      developer.log('Queries completed');
 
       final transporterOrders = (results[0] as List<dynamic>)
           .cast<Map<String, dynamic>>()
@@ -505,11 +522,13 @@ class _TransporterDetailsDialogState extends State<TransporterDetailsDialog> {
                 'product_name': CacheUtil.getProductName(order['product_id']?.toString()),
               })
           .toList();
+      developer.log('Transporter Orders: ${transporterOrders.length}, First order: ${transporterOrders.isNotEmpty ? transporterOrders.first : "none"}');
 
       final financialOrders = (results[1] as List<dynamic>)
           .cast<Map<String, dynamic>>()
           .map((order) => {...order, 'type': 'Chi Thanh Toán Đối Tác'})
           .toList();
+      developer.log('Financial Orders: ${financialOrders.length}, First order: ${financialOrders.isNotEmpty ? financialOrders.first : "none"}');
 
       final saleOrders = (results[2] as List<dynamic>)
           .cast<Map<String, dynamic>>()
@@ -519,6 +538,7 @@ class _TransporterDetailsDialogState extends State<TransporterDetailsDialog> {
                 'product_name': CacheUtil.getProductName(order['product_id']?.toString()),
               })
           .toList();
+      developer.log('Sale Orders: ${saleOrders.length}, First order: ${saleOrders.isNotEmpty ? saleOrders.first : "none"}');
 
       final reimportOrders = (results[3] as List<dynamic>)
           .cast<Map<String, dynamic>>()
@@ -528,6 +548,7 @@ class _TransporterDetailsDialogState extends State<TransporterDetailsDialog> {
                 'product_name': CacheUtil.getProductName(order['product_id']?.toString()),
               })
           .toList();
+      developer.log('Reimport Orders: ${reimportOrders.length}, First order: ${reimportOrders.isNotEmpty ? reimportOrders.first : "none"}');
 
       final newTransactions = [...transporterOrders, ...financialOrders, ...saleOrders, ...reimportOrders];
 
@@ -777,9 +798,10 @@ class _TransporterDetailsDialogState extends State<TransporterDetailsDialog> {
 
     return AlertDialog(
       title: const Text('Chi tiết đơn vị vận chuyển'),
-      content: SingleChildScrollView(
+      content: Container(
+        width: MediaQuery.of(context).size.width * 0.9,
+        height: MediaQuery.of(context).size.height * 0.8,
         child: Column(
-          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('Tên: ${transporter['name']?.toString() ?? ''}'),
@@ -822,51 +844,49 @@ class _TransporterDetailsDialogState extends State<TransporterDetailsDialog> {
               ],
             ),
             const SizedBox(height: 16),
-            if (isLoadingTransactions)
-              const Center(child: CircularProgressIndicator())
-            else if (transactionError != null)
-              Text(transactionError!)
-            else if (filteredTransactions.isEmpty)
-              const Text('Không có giao dịch trong khoảng thời gian này.')
-            else
-              SizedBox(
-                height: 300,
-                child: ListView.builder(
-                  controller: _scrollController,
-                  itemCount: filteredTransactions.length + (isLoadingMore ? 1 : 0),
-                  itemBuilder: (context, index) {
-                    if (index == filteredTransactions.length && isLoadingMore) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
-                    final transaction = filteredTransactions[index];
-                    final type = transaction['type'] as String;
-                    final createdAt = formatDate(transaction['created_at']?.toString());
-                    final amount = transaction['transport_fee'] ?? transaction['amount'] ?? transaction['price'] ?? 0;
-                    final currency = transaction['currency']?.toString() ?? 'VND';
-                    final formattedAmount = formatNumber(amount);
-                    final productName = transaction['product_name'] ?? 'Không xác định';
-                    final details = type == 'Phiếu Chuyển Kho Quốc Tế' ||
-                            type == 'Phiếu Chuyển Kho Nội Địa' ||
-                            type == 'Phiếu Nhập Kho Vận Chuyển'
-                        ? 'Sản phẩm: $productName, IMEI: ${transaction['imei']}'
-                        : type == 'Phiếu Bán Hàng'
-                            ? 'Sản phẩm: $productName, IMEI: ${transaction['imei']}'
-                            : type == 'Phiếu Nhập Lại Hàng'
-                                ? 'Sản phẩm: $productName, IMEI: ${transaction['imei']}, Số lượng: ${transaction['quantity']}'
-                                : type == 'Chi Thanh Toán Đối Tác'
-                                    ? 'Tài khoản: ${transaction['account']}, Ghi chú: ${transaction['note'] ?? ''}'
-                                    : '';
+            Expanded(
+              child: isLoadingTransactions
+                  ? const Center(child: CircularProgressIndicator())
+                  : transactionError != null
+                      ? Text(transactionError!)
+                      : filteredTransactions.isEmpty
+                          ? const Text('Không có giao dịch trong khoảng thời gian này.')
+                          : ListView.builder(
+                              controller: _scrollController,
+                              itemCount: filteredTransactions.length + (isLoadingMore ? 1 : 0),
+                              itemBuilder: (context, index) {
+                                if (index == filteredTransactions.length && isLoadingMore) {
+                                  return const Center(child: CircularProgressIndicator());
+                                }
+                                final transaction = filteredTransactions[index];
+                                final type = transaction['type'] as String;
+                                final createdAt = formatDate(transaction['created_at']?.toString());
+                                final amount = transaction['transport_fee'] ?? transaction['amount'] ?? transaction['price'] ?? 0;
+                                final currency = transaction['currency']?.toString() ?? 'VND';
+                                final formattedAmount = formatNumber(amount);
+                                final productName = transaction['product_name'] ?? 'Không xác định';
+                                final details = type == 'Phiếu Chuyển Kho Quốc Tế' ||
+                                        type == 'Phiếu Chuyển Kho Nội Địa' ||
+                                        type == 'Phiếu Nhập Kho Vận Chuyển'
+                                    ? 'Sản phẩm: $productName, IMEI: ${transaction['imei']}'
+                                    : type == 'Phiếu Bán Hàng'
+                                        ? 'Sản phẩm: $productName, IMEI: ${transaction['imei']}'
+                                        : type == 'Phiếu Nhập Lại Hàng'
+                                            ? 'Sản phẩm: $productName, IMEI: ${transaction['imei']}, Số lượng: ${transaction['quantity']}'
+                                            : type == 'Chi Thanh Toán Đối Tác'
+                                                ? 'Tài khoản: ${transaction['account']}, Ghi chú: ${transaction['note'] ?? ''}'
+                                                : '';
 
-                    return Card(
-                      margin: const EdgeInsets.symmetric(vertical: 4),
-                      child: ListTile(
-                        title: Text('$type - $createdAt'),
-                        subtitle: Text('$details\nSố tiền: $formattedAmount $currency'),
-                      ),
-                    );
-                  },
-                ),
-              ),
+                                return Card(
+                                  margin: const EdgeInsets.symmetric(vertical: 4),
+                                  child: ListTile(
+                                    title: Text('$type - $createdAt'),
+                                    subtitle: Text('$details\nSố tiền: $formattedAmount $currency'),
+                                  ),
+                                );
+                              },
+                            ),
+            ),
           ],
         ),
       ),

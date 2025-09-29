@@ -487,24 +487,42 @@ class _FixerDetailsDialogState extends State<FixerDetailsDialog> {
       final fixSendOrdersQuery = widget.tenantClient
           .from('fix_send_orders')
           .select('id, product_id, imei, quantity, note, created_at')
-          .eq('fixer', fixerName);
+          .eq('fixer', fixerName)
+          .eq('iscancelled', false);
 
       final fixReceiveOrdersQuery = widget.tenantClient
           .from('fix_receive_orders')
           .select('id, product_id, imei, quantity, price, currency, created_at, account, note, warehouse_id')
-          .eq('fixer', fixerName);
+          .eq('fixer', fixerName)
+          .eq('iscancelled', false);
 
       final financialOrdersQuery = widget.tenantClient
           .from('financial_orders')
           .select('id, amount, currency, created_at, account, note')
           .eq('partner_type', 'fix_units')
-          .eq('partner_name', fixerName);
+          .eq('partner_name', fixerName)
+          .eq('iscancelled', false);
 
+      // Add date filters if dates are selected
+      if (startDate != null) {
+        fixSendOrdersQuery.gte('created_at', startDate!.toIso8601String());
+        fixReceiveOrdersQuery.gte('created_at', startDate!.toIso8601String());
+        financialOrdersQuery.gte('created_at', startDate!.toIso8601String());
+      }
+      if (endDate != null) {
+        final endDateTime = endDate!.add(const Duration(days: 1));
+        fixSendOrdersQuery.lt('created_at', endDateTime.toIso8601String());
+        fixReceiveOrdersQuery.lt('created_at', endDateTime.toIso8601String());
+        financialOrdersQuery.lt('created_at', endDateTime.toIso8601String());
+      }
+
+      developer.log('Executing queries for fixer: "$fixerName"');
       final results = await Future.wait([
         fixSendOrdersQuery,
         fixReceiveOrdersQuery,
         financialOrdersQuery,
       ]);
+      developer.log('Queries completed');
 
       final fixSendOrders = (results[0] as List<dynamic>)
           .cast<Map<String, dynamic>>()
@@ -599,18 +617,21 @@ class _FixerDetailsDialogState extends State<FixerDetailsDialog> {
         final fixSendOrdersFuture = widget.tenantClient
             .from('fix_send_orders')
             .select('id, product_id, imei, quantity, note, created_at')
-            .eq('fixer', fixerName);
+            .eq('fixer', fixerName)
+            .eq('iscancelled', false);
 
         final fixReceiveOrdersFuture = widget.tenantClient
             .from('fix_receive_orders')
             .select('id, product_id, imei, quantity, price, currency, created_at, account, note, warehouse_id')
-            .eq('fixer', fixerName);
+            .eq('fixer', fixerName)
+            .eq('iscancelled', false);
 
         final financialOrdersFuture = widget.tenantClient
             .from('financial_orders')
             .select('id, amount, currency, created_at, account, note')
             .eq('partner_type', 'fix_units')
-            .eq('partner_name', fixerName);
+            .eq('partner_name', fixerName)
+            .eq('iscancelled', false);
 
         final results = await Future.wait([
           fixSendOrdersFuture,

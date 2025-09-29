@@ -53,7 +53,7 @@ class _ExchangeFormState extends State<ExchangeForm> {
   void initState() {
     super.initState();
     _fetchAccounts();
-    amountController.text = amount.toString();
+    amountController.text = ''; // Để trống ô nhập số tiền đổi
   }
 
   @override

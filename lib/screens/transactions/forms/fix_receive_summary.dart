@@ -554,19 +554,21 @@ class _FixReceiveSummaryState extends State<FixReceiveSummary> {
             fixCostPerItemInVND *= exchangeRate;
           }
 
-          // Lấy giá vốn ban đầu (cost_price) từ bảng products
+          // Lấy giá vốn ban đầu (cost_price) và giá fix lỗi hiện tại (fix_price) từ bảng products
           final productResponse = await retry(
             () => supabase
                 .from('products')
-                .select('cost_price')
+                .select('cost_price, fix_price')
                 .eq('imei', imei)
                 .eq('product_id', item['product_id'])
                 .single(),
-            operation: 'Fetch cost_price for product $imei',
+            operation: 'Fetch cost_price and fix_price for product $imei',
           );
 
           final oldCostPrice = productResponse['cost_price'] as num? ?? 0;
+          final oldFixPrice = productResponse['fix_price'] as num? ?? 0; // Lấy fix_price cũ, mặc định là 0 nếu null
           final newCostPrice = oldCostPrice + fixCostPerItemInVND;
+          final newFixPrice = oldFixPrice + fixCostPerItemInVND; // Cộng dồn fix_price cũ với fixCostPerItemInVND
 
           await retry(
             () => supabase.from('products').update({
@@ -574,10 +576,10 @@ class _FixReceiveSummaryState extends State<FixReceiveSummary> {
               'fix_unit': null,
               'send_fix_date': null,
               'warehouse_id': item['warehouse_id'],
-              'fix_price': fixCostPerItemInVND,
+              'fix_price': newFixPrice, // Cập nhật fix_price mới
               'fix_currency': 'VND',
               'fix_receive_date': now.toIso8601String(),
-              'cost_price': newCostPrice, // Cộng tiền sửa lỗi với giá vốn ban đầu
+              'cost_price': newCostPrice,
             }).eq('imei', imei).eq('product_id', item['product_id']),
             operation: 'Update product $imei',
           );

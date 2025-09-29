@@ -337,6 +337,8 @@ class _ExcelReportScreenState extends State<ExcelReportScreen> {
         {'name': 'transporter_orders', 'display': 'Phiếu vận chuyển'},
       ];
 
+      final tableData = await _fetchAllData(tables.map((t) => t['name']!).toList());
+
       final columnTranslations = {
         'fix_units': {
           'ID': 'id',
@@ -547,40 +549,6 @@ class _ExcelReportScreenState extends State<ExcelReportScreen> {
         },
       };
 
-      final tableData = <String, List<Map<String, dynamic>>>{};
-      final futures = tables.map((table) async {
-        final tableName = table['name']!;
-        print('Fetching data for table: $tableName');
-
-        bool hasCreatedAt = false;
-        try {
-          final testResponse = await widget.tenantClient.from(tableName).select().limit(1).maybeSingle();
-          if (testResponse != null && testResponse['created_at'] != null) {
-            hasCreatedAt = true;
-          }
-        } catch (e) {
-          print('Error checking created_at for table $tableName: $e');
-        }
-
-        List<dynamic> response;
-        if (hasCreatedAt) {
-          response = await widget.tenantClient
-              .from(tableName)
-              .select()
-              .order('created_at', ascending: false)
-              .limit(1000);
-        } else {
-          response = await widget.tenantClient.from(tableName).select();
-        }
-
-        tableData[tableName] = response.cast<Map<String, dynamic>>();
-        print('Processed ${tableData[tableName]!.length} rows for table $tableName');
-      }).toList();
-
-      print('Waiting for all Supabase queries to complete');
-      await Future.wait(futures);
-      print('All Supabase queries completed');
-
       final params = {
         'tables': tables,
         'columnTranslations': columnTranslations,
@@ -640,6 +608,53 @@ class _ExcelReportScreenState extends State<ExcelReportScreen> {
         );
       }
     }
+  }
+
+  Future<Map<String, List<Map<String, dynamic>>>> _fetchAllData(List<String> tableNames) async {
+    final data = <String, List<Map<String, dynamic>>>{};
+    final transactionTables = [
+      'financial_orders',
+      'fix_receive_orders',
+      'fix_send_orders',
+      'import_orders',
+      'reimport_orders',
+      'return_orders',
+      'sale_orders',
+      'transporter_orders',
+    ]; // Các bảng cần lọc iscancelled = false
+
+    for (var table in tableNames) {
+      print('Fetching data for table: $table');
+      try {
+        bool hasCreatedAt = false;
+        try {
+          final testResponse = await widget.tenantClient.from(table).select().limit(1).maybeSingle();
+          if (testResponse != null && testResponse['created_at'] != null) {
+            hasCreatedAt = true;
+          }
+        } catch (e) {
+          print('Error checking created_at for table $table: $e');
+        }
+
+        dynamic query = widget.tenantClient.from(table).select();
+        if (transactionTables.contains(table)) {
+          query = query.eq('iscancelled', false);
+        }
+        if (hasCreatedAt) {
+          query = query.order('created_at', ascending: false).limit(1000);
+        }
+
+        final response = await query;
+        data[table] = (response as List<dynamic>).cast<Map<String, dynamic>>();
+        print('Processed ${data[table]!.length} rows for table $table');
+      } catch (e) {
+        print('Error fetching data for table $table: $e');
+        data[table] = []; // Nếu lỗi, trả mảng rỗng cho bảng đó
+      }
+    }
+
+    print('All Supabase queries completed');
+    return data;
   }
 
   Future<void> _importExcel() async {

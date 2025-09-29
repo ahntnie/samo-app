@@ -115,7 +115,7 @@ class _FixReceiveFormState extends State<FixReceiveForm> {
     productId = widget.initialProductId;
     price = widget.initialPrice;
     imei = widget.initialImei ?? '';
-    currency = widget.initialCurrency ?? 'VND';
+    currency = widget.initialCurrency; // Không gán mặc định là 'VND'
     warehouseId = widget.initialWarehouseId;
     ticketItems = List.from(widget.ticketItems);
 
@@ -203,7 +203,7 @@ class _FixReceiveFormState extends State<FixReceiveForm> {
         setState(() {
           warehouses = warehouseList;
           currencies = uniqueCurrencies;
-          currency = currency ?? (uniqueCurrencies.contains('VND') ? 'VND' : uniqueCurrencies.isNotEmpty ? uniqueCurrencies.first : null);
+          currency = currency ?? (uniqueCurrencies.length == 1 ? uniqueCurrencies.first : null); // Chỉ gán currency nếu có đúng 1 loại tiền tệ
           isLoading = false;
         });
       }
@@ -946,7 +946,7 @@ class _FixReceiveFormState extends State<FixReceiveForm> {
               DropdownButtonFormField<String>(
                 value: currency,
                 items: currencies.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
-                hint: const Text('Đơn vị tiền'),
+                hint: const Text('Chọn loại tiền'), // Sửa hint thành "Chọn loại tiền"
                 onChanged: (val) => setState(() {
                   currency = val;
                 }),

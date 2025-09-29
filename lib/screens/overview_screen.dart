@@ -373,7 +373,7 @@ class _OverviewScreenState extends State<OverviewScreen> with SingleTickerProvid
       final allProducts = await allProductsQuery;
       for (final product in allProducts) {
         final status = product['status']?.toString() ?? '';
-        if (status == 'Đã bán') continue;
+        if (status == 'Đã bán' || status == 'Đã trả ncc') continue;
         final costPriceRaw = product['cost_price'];
         final costPrice = costPriceRaw is String ? num.tryParse(costPriceRaw)?.toDouble() ?? 0.0 : (costPriceRaw as num?)?.toDouble() ?? 0.0;
         totalInventoryCostValue += costPrice;
@@ -543,7 +543,7 @@ class _OverviewScreenState extends State<OverviewScreen> with SingleTickerProvid
       for (final p in allProducts) {
         final status = p['status']?.toString() ?? '';
         final categoryId = p['category_id'] as int?;
-        if (status.isEmpty || categoryId == null || status == 'Đã bán') continue;
+        if (status.isEmpty || categoryId == null || status == 'Đã bán' || status == 'Đã trả ncc') continue;
 
         final categoryName = categories[categoryId] ?? 'Không xác định';
         final categoryShort = categoryName == 'điện thoại' ? 'ĐT' : categoryName == 'phụ kiện' ? 'PK' : categoryName;
@@ -597,7 +597,7 @@ class _OverviewScreenState extends State<OverviewScreen> with SingleTickerProvid
       var query = widget.tenantClient
           .from('products')
           .select('product_id, status, category_id, warehouse_id')
-          .neq('status', 'Đã bán');
+          .not('status', 'in', ['Đã bán', 'Đã trả ncc']);
 
       if (status != null) {
         query = query.eq('status', status);

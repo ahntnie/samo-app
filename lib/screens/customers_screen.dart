@@ -593,24 +593,42 @@ class _CustomerDetailsDialogState extends State<CustomerDetailsDialog> {
       final saleOrdersQuery = widget.tenantClient
           .from('sale_orders')
           .select('id, product_id, imei, quantity, price, currency, created_at, account, note, customer_price, transporter_price, transporter, warehouse_id')
-          .eq('customer', customerName);
+          .eq('customer', customerName)
+          .eq('iscancelled', false);
 
       final financialOrdersQuery = widget.tenantClient
           .from('financial_orders')
           .select('id, amount, currency, created_at, account, note')
-          .eq('partner_type', 'customers')
-          .eq('partner_name', customerName);
+          .eq('partner_type', 'Khách hàng')
+          .eq('partner_name', customerName)
+          .eq('iscancelled', false);
 
       final reimportOrdersQuery = widget.tenantClient
           .from('reimport_orders')
           .select('id, product_id, imei, quantity, price, currency, created_at, account, note, warehouse_id')
-          .eq('customer', customerName);
+          .eq('customer', customerName)
+          .eq('iscancelled', false);
 
+      // Add date filters if dates are selected
+      if (startDate != null) {
+        saleOrdersQuery.gte('created_at', startDate!.toIso8601String());
+        financialOrdersQuery.gte('created_at', startDate!.toIso8601String());
+        reimportOrdersQuery.gte('created_at', startDate!.toIso8601String());
+      }
+      if (endDate != null) {
+        final endDateTime = endDate!.add(const Duration(days: 1));
+        saleOrdersQuery.lt('created_at', endDateTime.toIso8601String());
+        financialOrdersQuery.lt('created_at', endDateTime.toIso8601String());
+        reimportOrdersQuery.lt('created_at', endDateTime.toIso8601String());
+      }
+
+      developer.log('Executing queries for customer: "$customerName"');
       final results = await Future.wait([
         saleOrdersQuery,
         financialOrdersQuery,
         reimportOrdersQuery,
       ]);
+      developer.log('Queries completed');
 
       final saleOrders = (results[0] as List<dynamic>)
           .cast<Map<String, dynamic>>()
@@ -631,6 +649,7 @@ class _CustomerDetailsDialogState extends State<CustomerDetailsDialog> {
       developer.log('Reimport Orders: ${reimportOrders.length}, First order: ${reimportOrders.isNotEmpty ? reimportOrders.first : "none"}');
 
       final newTransactions = [...saleOrders, ...financialOrders, ...reimportOrders];
+      developer.log('Total transactions: ${newTransactions.length}');
 
       newTransactions.sort((a, b) {
         final dateA = DateTime.tryParse(a['created_at']?.toString() ?? '1900-01-01') ?? DateTime(1900);
@@ -705,18 +724,21 @@ class _CustomerDetailsDialogState extends State<CustomerDetailsDialog> {
         final saleOrdersFuture = widget.tenantClient
             .from('sale_orders')
             .select('id, product_id, imei, quantity, price, currency, created_at, account, note, customer_price, transporter_price, transporter, warehouse_id')
-            .eq('customer', customerName);
+            .eq('customer', customerName)
+            .eq('iscancelled', false);
 
         final financialOrdersFuture = widget.tenantClient
             .from('financial_orders')
             .select('id, amount, currency, created_at, account, note')
-            .eq('partner_type', 'customers')
-            .eq('partner_name', customerName);
+            .eq('partner_type', 'Khách hàng')
+            .eq('partner_name', customerName)
+            .eq('iscancelled', false);
 
         final reimportOrdersFuture = widget.tenantClient
             .from('reimport_orders')
             .select('id, product_id, imei, quantity, price, currency, created_at, account, note, warehouse_id')
-            .eq('customer', customerName);
+            .eq('customer', customerName)
+            .eq('iscancelled', false);
 
         final results = await Future.wait([
           saleOrdersFuture,
@@ -774,9 +796,16 @@ class _CustomerDetailsDialogState extends State<CustomerDetailsDialog> {
         final transaction = exportTransactions[i];
         final type = transaction['type'] as String;
         final createdAt = formatDate(transaction['created_at']?.toString());
-        final amount = transaction['price'] ?? transaction['amount'] ?? 0;
+        num totalAmount;
         final currency = transaction['currency']?.toString() ?? 'VND';
-        final formattedAmount = formatNumber(amount);
+        if (type == 'Phiếu Bán Hàng' || type == 'Phiếu Nhập Lại Hàng') {
+          final price = (transaction['price'] as num?) ?? 0;
+          final quantity = (transaction['quantity'] as num?) ?? 0;
+          totalAmount = price * quantity;
+        } else {
+          totalAmount = (transaction['amount'] as num?) ?? 0;
+        }
+        final formattedAmount = formatNumber(totalAmount);
         final productId = transaction['product_id']?.toString() ?? '';
         final productName = CacheUtil.getProductName(productId);
         final imei = transaction['imei']?.toString() ?? '';
@@ -933,9 +962,16 @@ class _CustomerDetailsDialogState extends State<CustomerDetailsDialog> {
                     final transaction = filteredTransactions[index];
                     final type = transaction['type'] as String;
                     final createdAt = formatDate(transaction['created_at']?.toString());
-                    final amount = transaction['price'] ?? transaction['amount'] ?? 0;
+                    num totalAmount;
                     final currency = transaction['currency']?.toString() ?? 'VND';
-                    final formattedAmount = formatNumber(amount);
+                    if (type == 'Phiếu Bán Hàng' || type == 'Phiếu Nhập Lại Hàng') {
+                      final price = (transaction['price'] as num?) ?? 0;
+                      final quantity = (transaction['quantity'] as num?) ?? 0;
+                      totalAmount = price * quantity;
+                    } else {
+                      totalAmount = (transaction['amount'] as num?) ?? 0;
+                    }
+                    final formattedAmount = formatNumber(totalAmount);
                     final productId = transaction['product_id']?.toString() ?? '';
                     final productName = CacheUtil.getProductName(productId);
                     final imei = transaction['imei']?.toString() ?? '';
