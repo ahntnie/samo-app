@@ -64,7 +64,6 @@ class _PaymentFormState extends State<PaymentForm> {
   void initState() {
     super.initState();
     _loadInitialData();
-    amountController.text = amount.toString();
   }
 
   @override

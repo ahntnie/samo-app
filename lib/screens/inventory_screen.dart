@@ -145,7 +145,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
 
       final response = await widget.tenantClient
           .from('products')
-          .select('id, product_id, imei, status, import_date, return_date, fix_price, send_fix_date, transport_fee, transporter, send_transfer_date, import_transfer_date, sale_price, customer_price, transporter_price, sale_date, saleman, note, import_price, import_currency, warehouse_id')
+          .select('id, product_id, imei, status, import_date, return_date, fix_price, send_fix_date, transport_fee, transporter, send_transfer_date, import_transfer_date, sale_price, customer_price, transporter_price, sale_date, saleman, note, import_price, import_currency, warehouse_id, customer')
           .range(start, end);
 
       setState(() {
@@ -188,7 +188,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
     try {
       var query = widget.tenantClient
           .from('products')
-          .select('id, product_id, imei, status, import_date, return_date, fix_price, send_fix_date, transport_fee, transporter, send_transfer_date, import_transfer_date, sale_price, customer_price, transporter_price, sale_date, saleman, note, import_price, import_currency, warehouse_id');
+          .select('id, product_id, imei, status, import_date, return_date, fix_price, send_fix_date, transport_fee, transporter, send_transfer_date, import_transfer_date, sale_price, customer_price, transporter_price, sale_date, saleman, note, import_price, import_currency, warehouse_id, customer');
 
       final queryText = searchController.text.toLowerCase();
       if (queryText.isNotEmpty) {
@@ -337,7 +337,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
           final productId = item['product_id']?.toString() ?? '';
           final imei = item['imei']?.toString() ?? '';
           final cacheKey = '$productId|$imei';
-          final customer = await _fetchCustomerFromSaleOrders(productId, imei);
+          final customer = item['customer']?.toString() ?? await _fetchCustomerFromSaleOrders(productId, imei);
           customerMap[cacheKey] = customer;
         }
       } catch (e) {}
@@ -450,7 +450,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
 
       var query = widget.tenantClient
           .from('products')
-          .select('id, product_id, imei, status, import_date, return_date, fix_price, send_fix_date, transport_fee, transporter, send_transfer_date, import_transfer_date, sale_price, customer_price, transporter_price, sale_date, saleman, note, import_price, import_currency, warehouse_id');
+          .select('id, product_id, imei, status, import_date, return_date, fix_price, send_fix_date, transport_fee, transporter, send_transfer_date, import_transfer_date, sale_price, customer_price, transporter_price, sale_date, saleman, note, import_price, import_currency, warehouse_id, customer');
 
       final queryText = searchController.text.toLowerCase();
       if (queryText.isNotEmpty) {
@@ -616,12 +616,9 @@ class _InventoryScreenState extends State<InventoryScreen> {
     final productNameId = product['product_id']?.toString();
     final imei = product['imei']?.toString() ?? '';
 
-    String? customer;
+    String? customer = product['customer']?.toString();
     String? supplier;
 
-    if (widget.permissions.contains('view_customer')) {
-      customer = await _fetchCustomerFromSaleOrders(productNameId ?? '', imei);
-    }
     if (widget.permissions.contains('view_supplier')) {
       supplier = await _fetchSupplierFromImportOrders(productNameId ?? '', imei);
     }

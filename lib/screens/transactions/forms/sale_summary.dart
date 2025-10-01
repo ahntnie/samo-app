@@ -349,14 +349,16 @@ class _SaleSummaryState extends State<SaleSummary> {
       final productsData = await retry(
         () => supabase
             .from('products')
-            .select('imei, status, saleman, sale_price, customer_price, transporter_price, profit')
+            .select('imei, status, saleman, sale_price, customer_price, transporter_price, profit, customer')
             .inFilter('imei', allImeis),
         operation: 'Verify products',
       );
 
       for (var product in productsData as List<dynamic>) {
-        if (product['status'] != 'Đã bán' || product['saleman'] != widget.salesman) {
-          print('Product ${product['imei']} not properly updated: status=${product['status']}, saleman=${product['saleman']}');
+        if (product['status'] != 'Đã bán' || 
+            product['saleman'] != widget.salesman ||
+            product['customer'] != widget.customer) {
+          print('Product ${product['imei']} not properly updated: status=${product['status']}, saleman=${product['saleman']}, customer=${product['customer']}');
           return false;
         }
 
@@ -444,7 +446,7 @@ class _SaleSummaryState extends State<SaleSummary> {
         builder: (context) => AlertDialog(
           title: const Text('Thông báo'),
           content: const Text('Vui lòng chọn tài khoản thanh toán!'),
-          actions: <Widget>[
+          actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
               child: const Text('Đóng'),
@@ -461,7 +463,7 @@ class _SaleSummaryState extends State<SaleSummary> {
         builder: (context) => AlertDialog(
           title: const Text('Thông báo'),
           content: const Text('Vui lòng chọn đơn vị vận chuyển nội địa khi chọn Ship COD!'),
-          actions: <Widget>[
+          actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
               child: const Text('Đóng'),
@@ -482,9 +484,8 @@ class _SaleSummaryState extends State<SaleSummary> {
             context: scaffoldContext,
             builder: (context) => AlertDialog(
               title: const Text('Thông báo'),
-              content:
-                  Text('IMEI "$imei" xuất hiện trong nhiều sản phẩm (ID: ${imeiMap[imei]} và ${item['product_id']}). Mỗi IMEI chỉ được phép thuộc một sản phẩm!'),
-              actions: <Widget>[
+              content: Text('IMEI "$imei" xuất hiện trong nhiều sản phẩm (ID: ${imeiMap[imei]} và ${item['product_id']}). Mỗi IMEI chỉ được phép thuộc một sản phẩm!'),
+              actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
                   child: const Text('Đóng'),
@@ -505,7 +506,7 @@ class _SaleSummaryState extends State<SaleSummary> {
         builder: (context) => AlertDialog(
           title: const Text('Thông báo'),
           content: const Text('Danh sách IMEI chứa giá trị không hợp lệ (rỗng hoặc khoảng trắng)!'),
-          actions: <Widget>[
+          actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
               child: const Text('Đóng'),
@@ -529,7 +530,7 @@ class _SaleSummaryState extends State<SaleSummary> {
           builder: (context) => AlertDialog(
             title: const Text('Thông báo'),
             content: const Text('Tiền cọc không được lớn hơn số tiền khách dư!'),
-            actions: <Widget>[
+            actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context),
                 child: const Text('Đóng'),
@@ -555,8 +556,21 @@ class _SaleSummaryState extends State<SaleSummary> {
 
         final invalidImeis = allImeis.where((imei) => !validImeis.contains(imei)).toList();
         if (invalidImeis.isNotEmpty) {
-          throw Exception(
-              'Các IMEI sau không tồn tại, không thuộc sản phẩm đã chọn, hoặc không ở trạng thái Tồn kho: ${invalidImeis.take(10).join(', ')}${invalidImeis.length > 10 ? '...' : ''}');
+          await showDialog(
+            context: scaffoldContext,
+            builder: (context) => AlertDialog(
+              title: const Text('Thông báo'),
+              content: Text(
+                  'Các IMEI sau không tồn tại, không thuộc sản phẩm đã chọn, hoặc không ở trạng thái Tồn kho: ${invalidImeis.take(10).join(', ')}${invalidImeis.length > 10 ? '...' : ''}'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Đóng'),
+                ),
+              ],
+            ),
+          );
+          return;
         }
       } catch (e) {
         await showDialog(
@@ -564,7 +578,7 @@ class _SaleSummaryState extends State<SaleSummary> {
           builder: (context) => AlertDialog(
             title: const Text('Thông báo'),
             content: Text('Lỗi khi kiểm tra IMEI: $e'),
-            actions: <Widget>[
+            actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context),
                 child: const Text('Đóng'),
@@ -720,6 +734,7 @@ class _SaleSummaryState extends State<SaleSummary> {
                 'saleman': widget.salesman,
                 'sale_price': salePriceInVND,
                 'profit': salePriceInVND - costPrice,
+                'customer': widget.customer, // Add customer name to products table
                 if (account == 'Ship COD') ...{
                   'customer_price': customerPricePerImei,
                   'transporter_price': transporterPricePerImei[batchImeis.first] ?? 0,

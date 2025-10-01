@@ -51,7 +51,6 @@ class _TransferFundFormState extends State<TransferFundForm> {
   void initState() {
     super.initState();
     _fetchAccounts();
-    amountController.text = amount.toString();
   }
 
   @override
