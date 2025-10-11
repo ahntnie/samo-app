@@ -181,7 +181,17 @@ class _ExcelReportScreenState extends State<ExcelReportScreen> {
     return true;
   }
 
-  static Future<Map<String, dynamic>> _createExcelFile(Map<String, dynamic> params) async {
+  String getExcelColumnName(int colIndex) {
+    String columnName = '';
+    int index = colIndex;
+    while (index >= 0) {
+      columnName = String.fromCharCode(65 + (index % 26)) + columnName;
+      index = (index ~/ 26) - 1;
+    }
+    return columnName;
+  }
+
+  Future<Map<String, dynamic>> _createExcelFile(Map<String, dynamic> params) async {
     final tables = params['tables'] as List<Map<String, String>>;
     final columnTranslations = params['columnTranslations'] as Map<String, Map<String, String>>;
     final tableData = params['tableData'] as Map<String, List<Map<String, dynamic>>>;
@@ -206,7 +216,6 @@ class _ExcelReportScreenState extends State<ExcelReportScreen> {
 
     final numericColumns = [
       'quantity',
-      'category_id',
       'min_value',
       'max_value',
       'balance',
@@ -243,8 +252,9 @@ class _ExcelReportScreenState extends State<ExcelReportScreen> {
       final dataColumns = columnTranslations[tableName]!.values.toList();
 
       for (var i = 0; i < headerColumns.length; i++) {
+        final columnLetter = getExcelColumnName(i);
         sheet
-            .cell(CellIndex.indexByString("${String.fromCharCode(65 + i)}1"))
+            .cell(CellIndex.indexByString("${columnLetter}1"))
             .value = TextCellValue(headerColumns[i]);
       }
 
@@ -262,6 +272,9 @@ class _ExcelReportScreenState extends State<ExcelReportScreen> {
             } else if (columnName == 'warehouse') {
               final warehouseId = row['warehouse_id']?.toString();
               cellValueString = warehouseId != null ? warehouseIdToName[warehouseId] ?? '' : '';
+            } else if (columnName == 'warehouse_name') {
+              final warehouseId = row['warehouse_id']?.toString();
+              cellValueString = warehouseId != null ? warehouseIdToName[warehouseId] ?? '' : '';
             } else if (numericColumns.contains(columnName)) {
               if (cellValueRaw != null) {
                 final doubleValue = double.tryParse(cellValueRaw.toString());
@@ -273,8 +286,9 @@ class _ExcelReportScreenState extends State<ExcelReportScreen> {
               cellValueString = cellValueRaw?.toString() ?? '';
             }
 
+            final columnLetter = getExcelColumnName(colIndex);
             sheet
-                .cell(CellIndex.indexByString("${String.fromCharCode(65 + colIndex)}${rowIndex + 2}"))
+                .cell(CellIndex.indexByString("${columnLetter}${rowIndex + 2}"))
                 .value = TextCellValue(cellValueString);
           }
         }
@@ -335,6 +349,7 @@ class _ExcelReportScreenState extends State<ExcelReportScreen> {
         {'name': 'return_orders', 'display': 'Phiếu trả hàng'},
         {'name': 'financial_accounts', 'display': 'Tài khoản tài chính'},
         {'name': 'transporter_orders', 'display': 'Phiếu vận chuyển'},
+        {'name': 'products_name', 'display': 'Tên sản phẩm'},
       ];
 
       final tableData = await _fetchAllData(tables.map((t) => t['name']!).toList());
@@ -368,6 +383,7 @@ class _ExcelReportScreenState extends State<ExcelReportScreen> {
         },
         'products': {
           'ID': 'id',
+          'ID Sản phẩm': 'product_id',
           'Tên': 'name',
           'IMEI': 'imei',
           'Giá nhập': 'import_price',
@@ -393,6 +409,8 @@ class _ExcelReportScreenState extends State<ExcelReportScreen> {
           'Lợi nhuận': 'profit',
           'Tiền khách cọc': 'customer_price',
           'Tiền COD vận': 'transporter_price',
+          'ID Kho': 'warehouse_id',
+          'Tên Kho': 'warehouse_name',
         },
         'customers': {
           'ID': 'id',
@@ -547,6 +565,12 @@ class _ExcelReportScreenState extends State<ExcelReportScreen> {
           'Loại': 'type',
           'Đã hủy': 'iscancelled',
         },
+        'products_name': {
+          'ID': 'id',
+          'Ngày tạo': 'created_at',
+          'Sản phẩm': 'products',
+          'ID danh mục': 'category_id',
+        },
       };
 
       final params = {
@@ -557,7 +581,7 @@ class _ExcelReportScreenState extends State<ExcelReportScreen> {
       };
 
       print('Calling _createExcelFile with params');
-      final excelData = await _createExcelFile(params);
+      final excelData = await this._createExcelFile(params);
       final excelBytes = excelData['bytes'] as List<int>;
       final fileName = excelData['fileName'] as String;
 
@@ -742,6 +766,7 @@ class _ExcelReportScreenState extends State<ExcelReportScreen> {
         },
         'Sản phẩm': {
           'ID': 'id',
+          'ID Sản phẩm': 'product_id',
           'Tên': 'name',
           'IMEI': 'imei',
           'Giá nhập': 'import_price',
@@ -767,6 +792,8 @@ class _ExcelReportScreenState extends State<ExcelReportScreen> {
           'Lợi nhuận': 'profit',
           'Tiền khách cọc': 'customer_price',
           'Tiền COD vận': 'transporter_price',
+          'ID Kho': 'warehouse_id',
+          'Tên Kho': 'warehouse_name',
         },
         'Khách hàng': {
           'ID': 'id',
@@ -921,6 +948,12 @@ class _ExcelReportScreenState extends State<ExcelReportScreen> {
           'Loại': 'type',
           'Đã hủy': 'iscancelled',
         },
+        'Tên sản phẩm': {
+          'ID': 'id',
+          'Ngày tạo': 'created_at',
+          'Sản phẩm': 'products',
+          'ID danh mục': 'category_id',
+        },
       };
 
       final sheetToTableMap = {
@@ -940,6 +973,7 @@ class _ExcelReportScreenState extends State<ExcelReportScreen> {
         'Phiếu trả hàng': 'return_orders',
         'Tài khoản tài chính': 'financial_accounts',
         'Phiếu vận chuyển': 'transporter_orders',
+        'Tên sản phẩm': 'products_name',
       };
 
       final timestampColumns = [
@@ -955,7 +989,6 @@ class _ExcelReportScreenState extends State<ExcelReportScreen> {
 
       final bigintColumns = [
         'quantity',
-        'category_id',
         'min_value',
         'max_value',
         'balance',
@@ -991,6 +1024,8 @@ class _ExcelReportScreenState extends State<ExcelReportScreen> {
 
       const batchSize = 100;
 
+      Map<String, List<Map<String, dynamic>>> tableData = {};
+
       for (var sheetName in excel.sheets.keys) {
         final sheet = excel.sheets[sheetName]!;
         final tableEntry = columnTranslations.entries.firstWhere(
@@ -999,24 +1034,12 @@ class _ExcelReportScreenState extends State<ExcelReportScreen> {
         );
 
         if (tableEntry.key.isEmpty) {
-          if (mounted) {
-            Navigator.pop(context);
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Sheet "$sheetName" không khớp với bảng nào trong hệ thống')),
-            );
-          }
-          return;
+          continue;
         }
 
         final tableName = sheetToTableMap[sheetName];
         if (tableName == null) {
-          if (mounted) {
-            Navigator.pop(context);
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Không tìm thấy bảng tương ứng cho sheet "$sheetName"')),
-            );
-          }
-          return;
+          continue;
         }
 
         final translations = tableEntry.value;
@@ -1037,73 +1060,100 @@ class _ExcelReportScreenState extends State<ExcelReportScreen> {
           return;
         }
 
+        tableData[tableName] = tableData[tableName] ?? [];
+
         final rows = sheet.rows.sublist(1);
-        for (var batchStart = 0; batchStart < rows.length; batchStart += batchSize) {
-          final batchEnd = (batchStart + batchSize < rows.length) ? batchStart + batchSize : rows.length;
-          final batchRows = rows.sublist(batchStart, batchEnd);
-          final batchData = <Map<String, dynamic>>[];
 
-          for (var row in batchRows) {
-            final rowData = <String, dynamic>{};
+        for (var row in rows) {
+          final rowData = <String, dynamic>{};
 
-            for (var colIndex = 0; colIndex < headers.length; colIndex++) {
-              final vietnameseHeader = headers[colIndex];
-              final columnName = translations[vietnameseHeader]!;
-              final CellValue? cellValue = row[colIndex]?.value;
-              final String cellValueString = cellValue?.toString() ?? '';
+          for (var colIndex = 0; colIndex < headers.length; colIndex++) {
+            final vietnameseHeader = headers[colIndex];
+            final columnName = translations[vietnameseHeader]!;
+            final CellValue? cellValue = row[colIndex]?.value;
+            final String cellValueString = cellValue?.toString() ?? '';
 
-              if (cellValueString.isEmpty) {
-                rowData[columnName] = null;
-              } else if (columnName == 'iscancelled') {
-                rowData[columnName] = cellValueString.toLowerCase() == 'true';
-              } else if (timestampColumns.contains(columnName)) {
-                rowData[columnName] = cellValueString;
-              } else if (columnName == 'imei') {
-                rowData[columnName] = cellValueString;
-              } else if (bigintColumns.contains(columnName)) {
-                final numericValue = double.tryParse(cellValueString);
-                if (numericValue != null) {
-                  rowData[columnName] = numericValue.toInt();
-                } else {
-                  throw Exception('Giá trị không hợp lệ cho cột số nguyên lớn $columnName trong bảng $tableName: $cellValueString');
-                }
-              } else if (integerColumns.contains(columnName)) {
-                final numericValue = double.tryParse(cellValueString);
-                if (numericValue != null) {
-                  rowData[columnName] = numericValue.toInt();
-                } else {
-                  throw Exception('Giá trị không hợp lệ cho cột số nguyên $columnName trong bảng $tableName: $cellValueString');
-                }
-              } else if (numericColumns.contains(columnName)) {
-                final numericValue = double.tryParse(cellValueString);
-                if (numericValue != null) {
-                  rowData[columnName] = numericValue;
-                } else {
-                  throw Exception('Giá trị không hợp lệ cho cột số $columnName trong bảng $tableName: $cellValueString');
-                }
+            if (cellValueString.isEmpty) {
+              rowData[columnName] = null;
+            } else if (columnName == 'iscancelled') {
+              rowData[columnName] = cellValueString.toLowerCase() == 'true';
+            } else if (timestampColumns.contains(columnName)) {
+              rowData[columnName] = cellValueString;
+            } else if (columnName == 'imei') {
+              rowData[columnName] = cellValueString;
+            } else if (bigintColumns.contains(columnName)) {
+              final numericValue = double.tryParse(cellValueString);
+              if (numericValue != null) {
+                rowData[columnName] = numericValue.toInt();
               } else {
-                rowData[columnName] = cellValueString;
+                throw Exception('Giá trị không hợp lệ cho cột số nguyên lớn $columnName trong bảng $tableName: $cellValueString');
               }
-            }
-
-            if (rowData.isNotEmpty) {
-              batchData.add(rowData);
+            } else if (integerColumns.contains(columnName)) {
+              final numericValue = double.tryParse(cellValueString);
+              if (numericValue != null) {
+                rowData[columnName] = numericValue.toInt();
+              } else {
+                throw Exception('Giá trị không hợp lệ cho cột số nguyên $columnName trong bảng $tableName: $cellValueString');
+              }
+            } else if (numericColumns.contains(columnName)) {
+              final numericValue = double.tryParse(cellValueString);
+              if (numericValue != null) {
+                rowData[columnName] = numericValue;
+              } else {
+                throw Exception('Giá trị không hợp lệ cho cột số $columnName trong bảng $tableName: $cellValueString');
+              }
+            } else {
+              rowData[columnName] = cellValueString;
             }
           }
 
-          if (batchData.isNotEmpty) {
-            for (int attempt = 1; attempt <= 2; attempt++) {
-              try {
-                await widget.tenantClient
-                    .from(tableName)
-                    .upsert(batchData, onConflict: 'id');
-                print('Upserted ${batchData.length} records in $tableName');
-                break;
-              } catch (e) {
-                if (attempt == 2) {
-                  throw Exception('Failed to upsert batch in table $tableName after 2 attempts: $e');
+          if (rowData.isNotEmpty) {
+            tableData[tableName]!.add(rowData);
+          }
+        }
+      }
+
+      final upsertOrder = [
+        'products_name',
+        'warehouses',
+        'transporters',
+        'shipping_rates',
+        'financial_accounts',
+        'suppliers',
+        'customers',
+        'fix_units',
+        'products',
+        'import_orders',
+        'sale_orders',
+        'return_orders',
+        'reimport_orders',
+        'fix_send_orders',
+        'fix_receive_orders',
+        'transporter_orders',
+        'financial_orders',
+      ];
+
+      for (var tableName in upsertOrder) {
+        if (tableData.containsKey(tableName)) {
+          final data = tableData[tableName]!;
+          for (var batchStart = 0; batchStart < data.length; batchStart += batchSize) {
+            final batchEnd = (batchStart + batchSize < data.length) ? batchStart + batchSize : data.length;
+            final batchData = data.sublist(batchStart, batchEnd);
+
+            if (batchData.isNotEmpty) {
+              for (int attempt = 1; attempt <= 2; attempt++) {
+                try {
+                  await widget.tenantClient
+                      .from(tableName)
+                      .upsert(batchData, onConflict: 'id');
+                  print('Upserted ${batchData.length} records in $tableName');
+                  break;
+                } catch (e) {
+                  if (attempt == 2) {
+                    throw Exception('Failed to upsert batch in table $tableName after 2 attempts: $e');
+                  }
+                  await Future.delayed(Duration(milliseconds: 500 * attempt));
                 }
-                await Future.delayed(Duration(milliseconds: 500 * attempt));
               }
             }
           }
@@ -1166,6 +1216,7 @@ class _ExcelReportScreenState extends State<ExcelReportScreen> {
         'return_orders',
         'financial_accounts',
         'transporter_orders',
+        'products_name',
       ];
 
       for (var table in tablesToReset) {

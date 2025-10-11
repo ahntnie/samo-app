@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import 'dart:math';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'text_scanner_screen.dart';
 
 class ThousandsFormatterLocal extends TextInputFormatter {
   @override
@@ -279,6 +280,51 @@ class _InitialDataScreenState extends State<InitialDataScreen> with SingleTicker
         builder: (context) => AlertDialog(
           title: const Text('Lỗi'),
           content: Text('Lỗi khi quét QR code: $e'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Đóng'),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
+  Future<void> _scanText() async {
+    try {
+      final scannedData = await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const TextScannerScreen(),
+        ),
+      );
+
+      if (scannedData != null && scannedData is String) {
+        setState(() {
+          if (imei != null && imei!.isNotEmpty) {
+            imei = '$imei\n$scannedData';
+          } else {
+            imei = scannedData;
+          }
+          imeiController.text = imei ?? '';
+          imeiError = _checkDuplicateImeis(imei!);
+        });
+
+        if (imeiError == null) {
+          await _checkProductStatus(imei!).then((error) {
+            setState(() {
+              imeiError = error;
+            });
+          });
+        }
+      }
+    } catch (e) {
+      await showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Lỗi'),
+          content: Text('Lỗi khi quét text: $e'),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
@@ -1213,9 +1259,37 @@ class _InitialDataScreenState extends State<InitialDataScreen> with SingleTicker
                                         ),
                                       ),
                                     ),
-                                    IconButton(
-                                      onPressed: _scanQRCode,
-                                      icon: const Icon(Icons.qr_code_scanner),
+                                    PopupMenuButton<String>(
+                                      onSelected: (value) {
+                                        if (value == 'qr') {
+                                          _scanQRCode();
+                                        } else if (value == 'text') {
+                                          _scanText();
+                                        }
+                                      },
+                                      itemBuilder: (context) => [
+                                        const PopupMenuItem(
+                                          value: 'qr',
+                                          child: Row(
+                                            children: [
+                                              Icon(Icons.qr_code_scanner),
+                                              SizedBox(width: 8),
+                                              Text('Quét QR Code'),
+                                            ],
+                                          ),
+                                        ),
+                                        const PopupMenuItem(
+                                          value: 'text',
+                                          child: Row(
+                                            children: [
+                                              Icon(Icons.text_fields),
+                                              SizedBox(width: 8),
+                                              Text('Quét Text (Chỉ số)'),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                      child: const Icon(Icons.qr_code_scanner),
                                     ),
                                   ],
                                 ),
