@@ -4,7 +4,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import 'dart:math';
 import 'package:mobile_scanner/mobile_scanner.dart';
-import 'text_scanner_screen.dart';
 
 class ThousandsFormatterLocal extends TextInputFormatter {
   @override
@@ -291,50 +290,6 @@ class _InitialDataScreenState extends State<InitialDataScreen> with SingleTicker
     }
   }
 
-  Future<void> _scanText() async {
-    try {
-      final scannedData = await Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => const TextScannerScreen(),
-        ),
-      );
-
-      if (scannedData != null && scannedData is String) {
-        setState(() {
-          if (imei != null && imei!.isNotEmpty) {
-            imei = '$imei\n$scannedData';
-          } else {
-            imei = scannedData;
-          }
-          imeiController.text = imei ?? '';
-          imeiError = _checkDuplicateImeis(imei!);
-        });
-
-        if (imeiError == null) {
-          await _checkProductStatus(imei!).then((error) {
-            setState(() {
-              imeiError = error;
-            });
-          });
-        }
-      }
-    } catch (e) {
-      await showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Lỗi'),
-          content: Text('Lỗi khi quét text: $e'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Đóng'),
-            ),
-          ],
-        ),
-      );
-    }
-  }
 
   Future<void> addCategoryDialog() async {
     String name = '';
@@ -1263,8 +1218,6 @@ class _InitialDataScreenState extends State<InitialDataScreen> with SingleTicker
                                       onSelected: (value) {
                                         if (value == 'qr') {
                                           _scanQRCode();
-                                        } else if (value == 'text') {
-                                          _scanText();
                                         }
                                       },
                                       itemBuilder: (context) => [
@@ -1275,16 +1228,6 @@ class _InitialDataScreenState extends State<InitialDataScreen> with SingleTicker
                                               Icon(Icons.qr_code_scanner),
                                               SizedBox(width: 8),
                                               Text('Quét QR Code'),
-                                            ],
-                                          ),
-                                        ),
-                                        const PopupMenuItem(
-                                          value: 'text',
-                                          child: Row(
-                                            children: [
-                                              Icon(Icons.text_fields),
-                                              SizedBox(width: 8),
-                                              Text('Quét Text (Chỉ số)'),
                                             ],
                                           ),
                                         ),
