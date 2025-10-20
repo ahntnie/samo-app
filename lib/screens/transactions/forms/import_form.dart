@@ -5,11 +5,13 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import '../../notification_service.dart';
+import '../../text_scanner_screen.dart';
 
 // Cache utility class
 class CacheUtil {
   static final Map<String, String> productNameCache = {};
   static final Map<String, String> warehouseNameCache = {};
+
   static void cacheProductName(String id, String name) => productNameCache[id] = name;
   static void cacheWarehouseName(String id, String name) => warehouseNameCache[id] = name;
   static String getProductName(String? id) => id != null ? productNameCache[id] ?? 'Không xác định' : 'Không xác định';
@@ -44,10 +46,10 @@ class ThousandsFormatterLocal extends TextInputFormatter {
   TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
     String newText = newValue.text.replaceAll('.', '').replaceAll(',', '');
     if (newText.isEmpty) return newValue;
-   
+
     final doubleValue = double.tryParse(newText);
     if (doubleValue == null) return oldValue;
-   
+
     final formatted = NumberFormat('#,###', 'vi_VN').format(doubleValue).replaceAll(',', '.');
     return TextEditingValue(
       text: formatted,
@@ -62,7 +64,9 @@ String formatNumberLocal(num value) {
 
 class ImportForm extends StatefulWidget {
   final SupabaseClient tenantClient;
+
   const ImportForm({super.key, required this.tenantClient});
+
   @override
   State<ImportForm> createState() => _ImportFormState();
 }
@@ -86,6 +90,7 @@ class _ImportFormState extends State<ImportForm> {
   String? imeiError;
   bool isProcessing = false;
   final Set<String> confirmedImeis = {};
+
   List<Map<String, dynamic>> categories = [];
   List<String> suppliers = [];
   List<Map<String, dynamic>> products = [];
@@ -95,6 +100,7 @@ class _ImportFormState extends State<ImportForm> {
   List<Map<String, dynamic>> warehouses = [];
   bool isLoading = true;
   String? errorMessage;
+
   final TextEditingController imeiController = TextEditingController();
   final TextEditingController priceController = TextEditingController();
 
@@ -119,18 +125,21 @@ class _ImportFormState extends State<ImportForm> {
       isLoading = true;
       errorMessage = null;
     });
+
     try {
       final supabase = widget.tenantClient;
+
       final categoryResponse = await retry(
-        () => supabase.from('categories').select('id, name'),
+            () => supabase.from('categories').select('id, name'),
         operation: 'Fetch categories',
       );
       final categoryList = categoryResponse
           .map((e) => {'id': e['id'] as int, 'name': e['name'] as String})
           .toList()
         ..sort((a, b) => (a['name'] as String).toLowerCase().compareTo((b['name'] as String).toLowerCase()));
+
       final supplierResponse = await retry(
-        () => supabase.from('suppliers').select('name'),
+            () => supabase.from('suppliers').select('name'),
         operation: 'Fetch suppliers',
       );
       final supplierList = supplierResponse
@@ -138,43 +147,46 @@ class _ImportFormState extends State<ImportForm> {
           .whereType<String>()
           .toList()
         ..sort();
+
       final productResponse = await retry(
-        () => supabase.from('products_name').select('id, products, category_id'),
+            () => supabase.from('products_name').select('id, products'),
         operation: 'Fetch products',
       );
       final productList = productResponse
           .map((e) {
-            final id = e['id']?.toString();
-            final products = e['products'] as String?;
-            if (id != null && products != null) {
-              CacheUtil.cacheProductName(id, products);
-              return {'id': id, 'name': products, 'category_id': e['category_id']};
-            }
-            return null;
-          })
+        final id = e['id']?.toString();
+        final products = e['products'] as String?;
+        if (id != null && products != null) {
+          CacheUtil.cacheProductName(id, products);
+          return {'id': id, 'name': products};
+        }
+        return null;
+      })
           .whereType<Map<String, dynamic>>()
           .toList()
         ..sort((a, b) => (a['name'] as String).toLowerCase().compareTo((b['name'] as String).toLowerCase()));
+
       final warehouseResponse = await retry(
-        () => supabase.from('warehouses').select('id, name, type'),
+            () => supabase.from('warehouses').select('id, name, type'),
         operation: 'Fetch warehouses',
       );
       final warehouseList = warehouseResponse
           .map((e) {
-            final id = e['id']?.toString();
-            final name = e['name'] as String?;
-            final type = e['type'] as String?;
-            if (id != null && name != null && type != null) {
-              CacheUtil.cacheWarehouseName(id, name);
-              return {'id': id, 'name': name, 'type': type};
-            }
-            return null;
-          })
+        final id = e['id']?.toString();
+        final name = e['name'] as String?;
+        final type = e['type'] as String?;
+        if (id != null && name != null && type != null) {
+          CacheUtil.cacheWarehouseName(id, name);
+          return {'id': id, 'name': name, 'type': type};
+        }
+        return null;
+      })
           .whereType<Map<String, dynamic>>()
           .toList()
         ..sort((a, b) => (a['name'] as String).toLowerCase().compareTo((b['name'] as String).toLowerCase()));
+
       final currencyResponse = await retry(
-        () => supabase.from('financial_accounts').select('currency').neq('currency', ''),
+            () => supabase.from('financial_accounts').select('currency').neq('currency', ''),
         operation: 'Fetch currencies',
       );
       final uniqueCurrencies = currencyResponse
@@ -182,19 +194,21 @@ class _ImportFormState extends State<ImportForm> {
           .whereType<String>()
           .toSet()
           .toList();
+
       final accountResponse = await retry(
-        () => supabase.from('financial_accounts').select('id, name, currency, balance'),
+            () => supabase.from('financial_accounts').select('id, name, currency, balance'),
         operation: 'Fetch accounts',
       );
       final accountList = accountResponse
           .map((e) => {
-                'id': e['id'].toString(),
-                'name': e['name'] as String?,
-                'currency': e['currency'] as String?,
-                'balance': e['balance'] as num?,
-              })
+        'id': e['id'].toString(),
+        'name': e['name'] as String?,
+        'currency': e['currency'] as String?,
+        'balance': e['balance'] as num?,
+      })
           .where((e) => e['name'] != null && e['currency'] != null)
           .toList();
+
       if (mounted) {
         setState(() {
           categories = categoryList;
@@ -240,11 +254,13 @@ class _ImportFormState extends State<ImportForm> {
       });
       return;
     }
+
     final filteredAccounts = accounts
         .where((acc) => acc['currency'] == selectedCurrency)
         .map((acc) => acc['name'] as String)
         .toList();
     filteredAccounts.add('Công nợ');
+
     setState(() {
       accountNames = filteredAccounts;
       account = null;
@@ -255,7 +271,7 @@ class _ImportFormState extends State<ImportForm> {
     try {
       final supabase = widget.tenantClient;
       final response = await retry(
-        () => supabase
+            () => supabase
             .from('financial_orders')
             .select('rate_vnd_cny, rate_vnd_usd')
             .eq('type', 'exchange')
@@ -264,7 +280,9 @@ class _ImportFormState extends State<ImportForm> {
             .maybeSingle(),
         operation: 'Fetch exchange rate',
       );
+
       if (response == null) return 1;
+
       if (currency == 'CNY' && response['rate_vnd_cny'] != null) {
         final rate = response['rate_vnd_cny'] as num;
         return rate != 0 ? rate : 1;
@@ -309,18 +327,21 @@ class _ImportFormState extends State<ImportForm> {
     final lines = input.split('\n').where((e) => e.trim().isNotEmpty).toList();
     if (lines.isEmpty) return null;
     final supabase = widget.tenantClient;
+
     try {
       for (int i = 0; i < lines.length; i += batchSize) {
         final batchImeis = lines.sublist(i, math.min(i + batchSize, lines.length));
         final imeisToCheck = batchImeis.where((imei) => !confirmedImeis.contains(imei)).toList();
         if (imeisToCheck.isEmpty) continue;
+
         final response = await retry(
-          () => supabase
+              () => supabase
               .from('products')
               .select('imei, name, warehouse_id, status, return_date')
               .inFilter('imei', imeisToCheck),
           operation: 'Check product status batch ${i ~/ batchSize + 1}',
         );
+
         for (final product in response) {
           final imei = product['imei'] as String;
           final productName = product['name'] as String;
@@ -328,7 +349,7 @@ class _ImportFormState extends State<ImportForm> {
           final status = product['status'] as String;
           final returnDate = product['return_date'] as String?;
           final warehouseIds = warehouses.map((w) => w['id'] as String).toList();
-         
+
           if (status == 'Đã trả ncc') {
             if (mounted) {
               final shouldImport = await showDialog<bool>(
@@ -355,7 +376,7 @@ class _ImportFormState extends State<ImportForm> {
             }
             continue;
           }
-         
+
           if (warehouseIdFromDb != null && warehouseIds.contains(warehouseIdFromDb) ||
               productName == 'Đang sửa' || productName == 'Đang chuyển Nhật') {
             return 'Sản phẩm $productName với mã "$imei" đã tồn tại!';
@@ -368,13 +389,22 @@ class _ImportFormState extends State<ImportForm> {
     }
   }
 
+  // Hàm phát âm thanh beep
+  void _playBeepSound() {
+    SystemSound.play(SystemSoundType.click);
+  }
+
   Future<void> _scanQRCode() async {
     try {
       final scannedData = await Navigator.push<String?>(
         context,
         MaterialPageRoute(builder: (context) => const QRCodeScannerScreen()),
       );
+
       if (scannedData != null && mounted) {
+        // Phát âm thanh beep khi quét thành công
+        _playBeepSound();
+        
         setState(() {
           if (imei != null && imei!.isNotEmpty) {
             imei = '$imei\n$scannedData';
@@ -384,6 +414,7 @@ class _ImportFormState extends State<ImportForm> {
           imeiController.text = imei ?? '';
           imeiError = _checkDuplicateImeis(imei!);
         });
+
         if (imeiError == null) {
           final error = await _checkProductStatus(imei!);
           if (mounted) {
@@ -410,20 +441,69 @@ class _ImportFormState extends State<ImportForm> {
     }
   }
 
+  Future<void> _scanText() async {
+    try {
+      final scannedData = await Navigator.push<String?>(
+        context,
+        MaterialPageRoute(builder: (context) => const TextScannerScreen()),
+      );
+
+      if (scannedData != null && mounted) {
+        // Phát âm thanh beep khi quét thành công
+        _playBeepSound();
+        
+        setState(() {
+          if (imei != null && imei!.isNotEmpty) {
+            imei = '$imei\n$scannedData';
+          } else {
+            imei = scannedData;
+          }
+          imeiController.text = imei ?? '';
+          imeiError = _checkDuplicateImeis(imei!);
+        });
+
+        if (imeiError == null) {
+          final error = await _checkProductStatus(imei!);
+          if (mounted) {
+            setState(() => imeiError = error);
+          }
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        await showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Thông báo'),
+            content: Text('Lỗi khi quét text: $e'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Đóng'),
+              ),
+            ],
+          ),
+        );
+      }
+    }
+  }
+
   Future<Map<String, dynamic>> _createSnapshot(String ticketId, List<String> imeiList) async {
     final supabase = widget.tenantClient;
     final snapshotData = <String, dynamic>{};
+
     try {
       if (supplier != null) {
         final supplierData = await retry(
-          () => supabase.from('suppliers').select().eq('name', supplier!).single(),
+              () => supabase.from('suppliers').select().eq('name', supplier!).single(),
           operation: 'Fetch supplier data',
         );
         snapshotData['suppliers'] = supplierData;
       }
+
       if (account != null && account != 'Công nợ' && currency != null) {
         final accountData = await retry(
-          () => supabase
+              () => supabase
               .from('financial_accounts')
               .select()
               .eq('name', account!)
@@ -433,13 +513,15 @@ class _ImportFormState extends State<ImportForm> {
         );
         snapshotData['financial_accounts'] = accountData;
       }
+
       if (imeiList.isNotEmpty) {
         final productsData = await retry(
-          () => supabase.from('products').select().inFilter('imei', imeiList),
+              () => supabase.from('products').select().inFilter('imei', imeiList),
           operation: 'Fetch products data',
         );
         snapshotData['products'] = productsData;
       }
+
       snapshotData['import_orders'] = [
         {
           'id': ticketId,
@@ -457,6 +539,7 @@ class _ImportFormState extends State<ImportForm> {
           'total_amount': (double.tryParse(priceController.text.replaceAll('.', '')) ?? 0) * imeiList.length,
         }
       ];
+
       return snapshotData;
     } catch (e) {
       throw Exception('Failed to create snapshot: $e');
@@ -495,17 +578,19 @@ class _ImportFormState extends State<ImportForm> {
               }
               try {
                 final response = await retry(
-                  () => widget.tenantClient
+                      () => widget.tenantClient
                       .from('categories')
                       .insert({'name': name})
                       .select('id, name')
                       .single(),
                   operation: 'Add category',
                 );
+
                 final newCategory = {
                   'id': response['id'] as int,
                   'name': response['name'] as String,
                 };
+
                 setState(() {
                   categories.add(newCategory);
                   categories.sort((a, b) => (a['name'] as String).toLowerCase().compareTo((b['name'] as String).toLowerCase()));
@@ -569,7 +654,7 @@ class _ImportFormState extends State<ImportForm> {
               }
               try {
                 await retry(
-                  () => widget.tenantClient.from('suppliers').insert({
+                      () => widget.tenantClient.from('suppliers').insert({
                     'name': name,
                     'debt_vnd': 0,
                     'debt_cny': 0,
@@ -608,32 +693,13 @@ class _ImportFormState extends State<ImportForm> {
 
   void addProductDialog() async {
     String name = '';
-    int? selectedCategoryId;
     await showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Thêm sản phẩm'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              decoration: const InputDecoration(labelText: 'Tên sản phẩm'),
-              onChanged: (val) => name = val,
-            ),
-            const SizedBox(height: 8),
-            DropdownButtonFormField<int>(
-              value: selectedCategoryId,
-              items: categories.map((e) => DropdownMenuItem<int>(
-                value: e['id'] as int,
-                child: Text(e['name'] as String),
-              )).toList(),
-              onChanged: (val) => selectedCategoryId = val,
-              decoration: const InputDecoration(
-                labelText: 'Chủng loại sản phẩm',
-                border: OutlineInputBorder(),
-              ),
-            ),
-          ],
+        content: TextField(
+          decoration: const InputDecoration(labelText: 'Tên sản phẩm'),
+          onChanged: (val) => name = val,
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Hủy')),
@@ -655,12 +721,12 @@ class _ImportFormState extends State<ImportForm> {
                 );
                 return;
               }
-              if (selectedCategoryId == null) {
+              if (categoryId == null) {
                 await showDialog(
                   context: context,
                   builder: (context) => AlertDialog(
                     title: const Text('Thông báo'),
-                    content: const Text('Vui lòng chọn chủng loại sản phẩm!'),
+                    content: const Text('Vui lòng chọn chủng loại sản phẩm trước!'),
                     actions: [
                       TextButton(
                         onPressed: () => Navigator.pop(context),
@@ -673,13 +739,10 @@ class _ImportFormState extends State<ImportForm> {
               }
               try {
                 final response = await retry(
-                  () => widget.tenantClient
+                      () => widget.tenantClient
                       .from('products_name')
-                      .insert({
-                        'products': name,
-                        'category_id': selectedCategoryId,
-                      })
-                      .select('id, products, category_id')
+                      .insert({'products': name})
+                      .select('id, products')
                       .single(),
                   operation: 'Add product',
                 );
@@ -687,11 +750,7 @@ class _ImportFormState extends State<ImportForm> {
                 if (newProductId != null) {
                   CacheUtil.cacheProductName(newProductId, name);
                   setState(() {
-                    products.add({
-                      'id': newProductId,
-                      'name': name,
-                      'category_id': selectedCategoryId,
-                    });
+                    products.add({'id': newProductId, 'name': name});
                     products.sort((a, b) => (a['name'] as String).toLowerCase().compareTo((b['name'] as String).toLowerCase()));
                     productId = newProductId;
                     productName = name;
@@ -785,7 +844,7 @@ class _ImportFormState extends State<ImportForm> {
               }
               try {
                 final response = await retry(
-                  () => widget.tenantClient
+                      () => widget.tenantClient
                       .from('warehouses')
                       .insert({'name': name, 'type': type})
                       .select('id, name')
@@ -852,6 +911,7 @@ class _ImportFormState extends State<ImportForm> {
       }
       return;
     }
+
     if (imeiError != null && mounted) {
       await showDialog(
         context: scaffoldContext,
@@ -868,8 +928,10 @@ class _ImportFormState extends State<ImportForm> {
       );
       return;
     }
+
     final now = DateTime.now();
     final amount = double.tryParse(priceController.text.replaceAll('.', '')) ?? 0;
+
     List<String> imeiList = [];
     if (isAccessory) {
       if (quantity <= 1) {
@@ -893,6 +955,7 @@ class _ImportFormState extends State<ImportForm> {
         }
       }
     }
+
     if (imeiList.isEmpty) {
       if (mounted) {
         await showDialog(
@@ -911,6 +974,7 @@ class _ImportFormState extends State<ImportForm> {
       }
       return;
     }
+
     if (imeiList.length > maxImeiQuantity) {
       if (mounted) {
         await showDialog(
@@ -929,6 +993,7 @@ class _ImportFormState extends State<ImportForm> {
       }
       return;
     }
+
     if (imeiList.length >= warnImeiQuantity && mounted) {
       await showDialog(
         context: scaffoldContext,
@@ -944,7 +1009,9 @@ class _ImportFormState extends State<ImportForm> {
         ),
       );
     }
+
     final totalAmount = amount * imeiList.length;
+
     if (mounted) {
       await showDialog(
         context: scaffoldContext,
@@ -979,6 +1046,7 @@ class _ImportFormState extends State<ImportForm> {
                 setState(() {
                   isProcessing = true;
                 });
+
                 try {
                   if (account != 'Công nợ') {
                     final selectedAccount = accounts.firstWhere((acc) => acc['name'] == account);
@@ -1005,16 +1073,19 @@ class _ImportFormState extends State<ImportForm> {
                       return;
                     }
                   }
+
                   final supabase = widget.tenantClient;
+
                   for (int i = 0; i < imeiList.length; i += batchSize) {
                     final batchImeis = imeiList.sublist(i, math.min(i + batchSize, imeiList.length));
                     final existingProducts = await retry(
-                      () => supabase
+                          () => supabase
                           .from('products')
                           .select('imei, status, return_date')
                           .inFilter('imei', batchImeis),
                       operation: 'Check existing products batch ${i ~/ batchSize + 1}',
                     );
+
                     for (final product in existingProducts) {
                       final status = product['status'] as String;
                       if (status != 'Đã trả ncc') {
@@ -1041,18 +1112,21 @@ class _ImportFormState extends State<ImportForm> {
                       }
                     }
                   }
+
                   final exchangeRate = await _getExchangeRate(currency!);
                   if (exchangeRate == 1 && currency != 'VND') {
                     throw Exception('Vui lòng tạo phiếu đổi tiền để cập nhật tỷ giá cho $currency.');
                   }
+
                   num costPrice = amount;
                   if (currency == 'CNY') {
                     costPrice *= exchangeRate;
                   } else if (currency == 'USD') {
                     costPrice *= exchangeRate;
                   }
+
                   final importOrderResponse = await retry(
-                    () => supabase.from('import_orders').insert({
+                        () => supabase.from('import_orders').insert({
                       'product_id': productId,
                       'product_name': CacheUtil.getProductName(productId),
                       'warehouse_id': warehouseId,
@@ -1069,16 +1143,19 @@ class _ImportFormState extends State<ImportForm> {
                     }).select('id').single(),
                     operation: 'Insert import order',
                   );
+
                   final ticketId = importOrderResponse['id']?.toString();
                   if (ticketId == null) {
                     throw Exception('Failed to get ticket ID');
                   }
+
                   final snapshotData = await retry(
-                    () => _createSnapshot(ticketId, imeiList),
+                        () => _createSnapshot(ticketId, imeiList),
                     operation: 'Create snapshot',
                   );
+
                   await retry(
-                    () => supabase.from('snapshots').insert({
+                        () => supabase.from('snapshots').insert({
                       'ticket_id': ticketId,
                       'ticket_table': 'import_orders',
                       'snapshot_data': snapshotData,
@@ -1086,22 +1163,25 @@ class _ImportFormState extends State<ImportForm> {
                     }),
                     operation: 'Save snapshot',
                   );
+
                   for (int i = 0; i < imeiList.length; i += batchSize) {
                     final batchImeis = imeiList.sublist(i, math.min(i + batchSize, imeiList.length));
-                   
+
                     final existingProducts = await retry(
-                      () => supabase
+                          () => supabase
                           .from('products')
                           .select('imei, status')
                           .inFilter('imei', batchImeis)
                           .eq('status', 'Đã trả ncc'),
                       operation: 'Check returned products batch ${i ~/ batchSize + 1}',
                     );
+
                     final existingImeis = existingProducts.map((p) => p['imei'] as String).toSet();
                     final newImeis = batchImeis.where((imei) => !existingImeis.contains(imei)).toList();
+
                     if (existingImeis.isNotEmpty) {
                       await retry(
-                        () => supabase.from('products').update({
+                            () => supabase.from('products').update({
                           'name': CacheUtil.getProductName(productId),
                           'category_id': categoryId,
                           'import_price': amount,
@@ -1116,9 +1196,10 @@ class _ImportFormState extends State<ImportForm> {
                         operation: 'Update returned products batch ${i ~/ batchSize + 1}',
                       );
                     }
+
                     if (newImeis.isNotEmpty) {
                       await retry(
-                        () => supabase.from('products').insert(newImeis.map((generatedIMEI) => {
+                            () => supabase.from('products').insert(newImeis.map((generatedIMEI) => {
                           'product_id': productId,
                           'name': CacheUtil.getProductName(productId),
                           'category_id': categoryId,
@@ -1136,15 +1217,17 @@ class _ImportFormState extends State<ImportForm> {
                       );
                     }
                   }
+
                   if (account == 'Công nợ') {
                     final currentSupplier = await retry(
-                      () => supabase
+                          () => supabase
                           .from('suppliers')
                           .select('debt_vnd, debt_cny, debt_usd')
                           .eq('name', supplier!)
                           .single(),
                       operation: 'Fetch supplier debt',
                     );
+
                     String debtColumn;
                     if (currency == 'VND') {
                       debtColumn = 'debt_vnd';
@@ -1155,10 +1238,12 @@ class _ImportFormState extends State<ImportForm> {
                     } else {
                       throw Exception('Loại tiền tệ không được hỗ trợ: $currency');
                     }
+
                     final currentDebt = currentSupplier[debtColumn] as num? ?? 0;
                     final updatedDebt = currentDebt + totalAmount;
+
                     await retry(
-                      () => supabase
+                          () => supabase
                           .from('suppliers')
                           .update({debtColumn: updatedDebt})
                           .eq('name', supplier!),
@@ -1168,8 +1253,9 @@ class _ImportFormState extends State<ImportForm> {
                     final selectedAccount = accounts.firstWhere((acc) => acc['name'] == account);
                     final currentBalance = selectedAccount['balance'] as num? ?? 0;
                     final updatedBalance = currentBalance - totalAmount;
+
                     await retry(
-                      () => supabase
+                          () => supabase
                           .from('financial_accounts')
                           .update({'balance': updatedBalance})
                           .eq('name', account!)
@@ -1177,14 +1263,17 @@ class _ImportFormState extends State<ImportForm> {
                       operation: 'Update account balance',
                     );
                   }
+
                   final currentProductId = productId;
                   final currentImeiListLength = imeiList.length;
+
                   await NotificationService.showNotification(
                     132,
                     'Phiếu Nhập Hàng Đã Tạo',
                     'Đã nhập hàng "${CacheUtil.getProductName(currentProductId)}" số lượng ${formatNumberLocal(currentImeiListLength)} chiếc',
                     'import_created',
                   );
+
                   if (mounted) {
                     setState(() {
                       categoryId = null;
@@ -1209,7 +1298,9 @@ class _ImportFormState extends State<ImportForm> {
                       isProcessing = false;
                       _updateAccountNames(null);
                     });
+
                     await _fetchInitialData();
+
                     ScaffoldMessenger.of(scaffoldContext).showSnackBar(
                       SnackBar(
                         content: Text(
@@ -1257,7 +1348,7 @@ class _ImportFormState extends State<ImportForm> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       margin: const EdgeInsets.symmetric(vertical: 4),
-      height: isImeiField ? 80 : isImeiList ? 120 : isSupplierField ? 56 : 48,
+      height: isImeiField ? 144 : isImeiList ? 120 : isSupplierField ? 56 : 48, // Tăng chiều cao IMEI field từ 96 lên 144 (50%)
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(8),
@@ -1279,6 +1370,7 @@ class _ImportFormState extends State<ImportForm> {
     if (isLoading) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
+
     if (errorMessage != null) {
       return Scaffold(
         body: Center(
@@ -1296,6 +1388,7 @@ class _ImportFormState extends State<ImportForm> {
         ),
       );
     }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Phiếu nhập hàng', style: TextStyle(color: Colors.white)),
@@ -1315,9 +1408,9 @@ class _ImportFormState extends State<ImportForm> {
                         DropdownButtonFormField<int>(
                           value: categoryId,
                           items: categories.map((e) => DropdownMenuItem<int>(
-                                value: e['id'] as int,
-                                child: Text(e['name'] as String),
-                              )).toList(),
+                            value: e['id'] as int,
+                            child: Text(e['name'] as String),
+                          )).toList(),
                           decoration: const InputDecoration(
                             labelText: 'Chủng loại sản phẩm',
                             border: InputBorder.none,
@@ -1478,9 +1571,9 @@ class _ImportFormState extends State<ImportForm> {
                 ),
                 if (!isAccessory)
                   wrapField(
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    Column(
                       children: [
+                        // Phần nhập IMEI
                         Expanded(
                           child: TextFormField(
                             controller: imeiController,
@@ -1490,6 +1583,7 @@ class _ImportFormState extends State<ImportForm> {
                                 imei = val;
                                 imeiError = _checkDuplicateImeis(val);
                               });
+
                               if (imeiError == null) {
                                 _checkProductStatus(val).then((error) {
                                   if (mounted) {
@@ -1506,9 +1600,50 @@ class _ImportFormState extends State<ImportForm> {
                             ),
                           ),
                         ),
-                        IconButton(
-                          onPressed: _scanQRCode,
-                          icon: const Icon(Icons.qr_code_scanner),
+                        // 2 nút quét
+                        Row(
+                          children: [
+                            // Nút quét QR (màu vàng)
+                            Expanded(
+                              child: Container(
+                                height: 24, // Chiều cao bằng 1/2 của phần còn lại
+                                margin: const EdgeInsets.only(right: 4),
+                                child: ElevatedButton.icon(
+                                  onPressed: _scanQRCode,
+                                  icon: const Icon(Icons.qr_code_scanner, size: 16),
+                                  label: const Text('QR', style: TextStyle(fontSize: 12)),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.amber,
+                                    foregroundColor: Colors.black,
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            // Nút quét Text (màu xanh lá cây)
+                            Expanded(
+                              child: Container(
+                                height: 24, // Chiều cao bằng 1/2 của phần còn lại
+                                margin: const EdgeInsets.only(left: 4),
+                                child: ElevatedButton.icon(
+                                  onPressed: _scanText,
+                                  icon: const Icon(Icons.text_fields, size: 16),
+                                  label: const Text('IMEI', style: TextStyle(fontSize: 12)),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.green,
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -1641,6 +1776,7 @@ class _ImportFormState extends State<ImportForm> {
 
 class QRCodeScannerScreen extends StatefulWidget {
   const QRCodeScannerScreen({super.key});
+
   @override
   State<QRCodeScannerScreen> createState() => _QRCodeScannerScreenState();
 }
@@ -1652,11 +1788,13 @@ class _QRCodeScannerScreenState extends State<QRCodeScannerScreen> {
     torchEnabled: false,
   );
   bool scanned = false;
+
   @override
   void dispose() {
     controller.dispose();
     super.dispose();
   }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(

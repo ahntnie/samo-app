@@ -1,3 +1,3 @@
 @echo off
-cd /d "D:\sanmo
-flutter build apk
+cd /d "D:\samo-app"
+flutter build apk --release

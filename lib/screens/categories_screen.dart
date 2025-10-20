@@ -25,6 +25,10 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
   String selectedWarehouseType = 'nội địa';
   final currencies = ['VND', 'CNY', 'USD'];
   final warehouseTypes = ['nội địa', 'quốc tế'];
+  
+  // Biến cho việc thêm sản phẩm
+  List<Map<String, dynamic>> categories = [];
+  int? selectedCategoryId;
 
   // Cache để lưu id -> name
   static Map<String, String> productNameCache = {};
@@ -34,12 +38,25 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
   void initState() {
     super.initState();
     _fetchItems();
+    _fetchCategories();
   }
 
   @override
   void dispose() {
     nameController.dispose();
     super.dispose();
+  }
+
+  Future<void> _fetchCategories() async {
+    try {
+      final supabase = widget.tenantClient;
+      final response = await supabase.from('categories').select('id, name');
+      setState(() {
+        categories = response;
+      });
+    } catch (e) {
+      print('Error fetching categories: $e');
+    }
   }
 
   Future<void> _fetchItems() async {
@@ -105,9 +122,18 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
           print('Added category: $name');
           break;
         case 'Sản phẩm':
-          final response = await supabase.from('products_name').insert({ 'products': name }).select('id, products').single();
+          if (selectedCategoryId == null) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Vui lòng chọn loại sản phẩm!')),
+            );
+            return;
+          }
+          final response = await supabase.from('products_name').insert({ 
+            'products': name,
+            'category_id': selectedCategoryId,
+          }).select('id, products').single();
           productNameCache[response['id'].toString()] = name;
-          print('Added product: $name, id: ${response['id']}');
+          print('Added product: $name, id: ${response['id']}, category_id: $selectedCategoryId');
           break;
         case 'Tài khoản thanh toán':
           await supabase.from('financial_accounts').insert({
@@ -213,6 +239,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
     setState(() {
       selectedCurrency = 'VND';
       selectedWarehouseType = 'nội địa';
+      selectedCategoryId = null;
     });
     showDialog(
       context: context,
@@ -228,6 +255,21 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
                 border: OutlineInputBorder(),
               ),
             ),
+            if (selectedType == 'Sản phẩm') ...[
+              const SizedBox(height: 8),
+              DropdownButtonFormField<int>(
+                value: selectedCategoryId,
+                items: categories.map((e) => DropdownMenuItem<int>(
+                  value: e['id'] as int,
+                  child: Text(e['name'] as String),
+                )).toList(),
+                onChanged: (val) => setState(() => selectedCategoryId = val),
+                decoration: const InputDecoration(
+                  labelText: 'Loại sản phẩm',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ],
             if (selectedType == 'Tài khoản thanh toán') ...[
               const SizedBox(height: 8),
               DropdownButtonFormField<String>(

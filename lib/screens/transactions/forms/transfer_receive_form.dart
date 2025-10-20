@@ -7,6 +7,7 @@ import 'package:uuid/uuid.dart';
 import 'dart:math' as math;
 import 'dart:developer' as developer;
 import '../../notification_service.dart';
+import '../../text_scanner_screen.dart';
 
 class ThousandsFormatterLocal extends TextInputFormatter {
   @override
@@ -340,6 +341,11 @@ class _TransferReceiveFormState extends State<TransferReceiveForm> {
     return snapshotData;
   }
 
+  // Hàm phát âm thanh beep
+  void _playBeepSound() {
+    SystemSound.play(SystemSoundType.click);
+  }
+
   Future<void> _scanQRCode() async {
     try {
       final scannedData = await Navigator.push(
@@ -348,6 +354,9 @@ class _TransferReceiveFormState extends State<TransferReceiveForm> {
       );
 
       if (scannedData != null && scannedData is String && mounted) {
+        // Phát âm thanh beep khi quét thành công
+        _playBeepSound();
+        
         setState(() {
           imei = scannedData;
           imeiController.text = scannedData;
@@ -375,6 +384,47 @@ class _TransferReceiveFormState extends State<TransferReceiveForm> {
     } catch (e) {
       developer.log('Lỗi khi quét QR code: $e', level: 1000);
       _showErrorSnackBar('Lỗi khi quét QR code: $e');
+    }
+  }
+
+  Future<void> _scanText() async {
+    try {
+      final scannedData = await Navigator.push<String?>(
+        context,
+        MaterialPageRoute(builder: (context) => const TextScannerScreen()),
+      );
+
+      if (scannedData != null && mounted) {
+        // Phát âm thanh beep khi quét thành công
+        _playBeepSound();
+        
+        setState(() {
+          imei = scannedData;
+          imeiController.text = scannedData;
+          imeiError = _checkDuplicateImeis(scannedData);
+        });
+
+        if (imeiError == null) {
+          final error = await _checkInventoryStatus(scannedData);
+          if (mounted) {
+            setState(() {
+              imeiError = error;
+            });
+            if (error == null) {
+              setState(() {
+                imeiList.insert(0, scannedData.trim());
+                imei = '';
+                imeiController.text = '';
+                imeiError = null;
+                imeiFocusNode.unfocus();
+              });
+            }
+          }
+        }
+      }
+    } catch (e) {
+      developer.log('Lỗi khi quét text: $e', level: 1000);
+      _showErrorSnackBar('Lỗi khi quét text: $e');
     }
   }
 
@@ -462,14 +512,22 @@ class _TransferReceiveFormState extends State<TransferReceiveForm> {
       }
 
       if (errors.isEmpty && productId != null) {
-        try {
-          imeis = await _generateRandomImeis(enteredQuantity, productId!);
+        // Sử dụng IMEI đã tự động lấy từ imeiList nếu có
+        if (imeiList.isNotEmpty && imeiList.length == enteredQuantity) {
+          imeis = List.from(imeiList);
           transportFeeValue = enteredFee;
           feesPerProduct = { for (var imei in imeis) imei: transportFeeValue / imeis.length };
-        } catch (e) {
-          errors.add('$e');
-          imeis = [];
-          transportFeeValue = 0;
+        } else {
+          // Nếu chưa có IMEI hoặc số lượng không khớp, tạo mới
+          try {
+            imeis = await _generateRandomImeis(enteredQuantity, productId!);
+            transportFeeValue = enteredFee;
+            feesPerProduct = { for (var imei in imeis) imei: transportFeeValue / imeis.length };
+          } catch (e) {
+            errors.add('$e');
+            imeis = [];
+            transportFeeValue = 0;
+          }
         }
       } else {
         imeis = [];
@@ -938,7 +996,7 @@ class _TransferReceiveFormState extends State<TransferReceiveForm> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       margin: const EdgeInsets.symmetric(vertical: 4),
-      height: isImeiField ? 48 : isImeiList ? 120 : 48,
+      height: isImeiField ? 72 : isImeiList ? 120 : 48, // Tăng chiều cao IMEI field từ 48 lên 72 (50%)
       decoration: BoxDecoration(
         color: Colors.grey.shade200,
         borderRadius: BorderRadius.circular(8),
@@ -1043,7 +1101,7 @@ class _TransferReceiveFormState extends State<TransferReceiveForm> {
                     });
                   return filtered.isNotEmpty ? filtered.take(10).toList() : ['Không tìm thấy sản phẩm'];
                 },
-                onSelected: (String selection) {
+                onSelected: (String selection) async {
                   final selectedId = productMap.entries
                       .firstWhere(
                         (entry) => entry.value == selection,
@@ -1060,6 +1118,21 @@ class _TransferReceiveFormState extends State<TransferReceiveForm> {
                       imeiList = [];
                     });
                     _fetchImeiSuggestions('');
+                    
+                    // Tự động lấy IMEI nếu đã có số lượng
+                    if (quantity > 0) {
+                      try {
+                        final autoImeis = await _generateRandomImeis(quantity, selectedId);
+                        setState(() {
+                          imeiList = autoImeis;
+                        });
+                      } catch (e) {
+                        setState(() {
+                          imeiList = [];
+                        });
+                        _showErrorSnackBar('$e');
+                      }
+                    }
                   }
                 },
                 fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
@@ -1093,20 +1166,42 @@ class _TransferReceiveFormState extends State<TransferReceiveForm> {
                 controller: quantityController,
                 keyboardType: TextInputType.number,
                 enabled: !isImeiManual,
-                onChanged: (val) => setState(() {
-                  quantity = int.tryParse(val) ?? 0;
-                }),
+                onChanged: (val) async {
+                  final newQuantity = int.tryParse(val) ?? 0;
+                  setState(() {
+                    quantity = newQuantity;
+                  });
+                  
+                  // Tự động lấy IMEI khi có sản phẩm và số lượng
+                  if (productId != null && newQuantity > 0) {
+                    try {
+                      final autoImeis = await _generateRandomImeis(newQuantity, productId!);
+                      setState(() {
+                        imeiList = autoImeis;
+                      });
+                    } catch (e) {
+                      setState(() {
+                        imeiList = [];
+                      });
+                      _showErrorSnackBar('$e');
+                    }
+                  } else {
+                    setState(() {
+                      imeiList = [];
+                    });
+                  }
+                },
                 decoration: const InputDecoration(
-                  labelText: 'Số lượng',
+                  labelText: 'Số lượng (tự động lấy IMEI nếu có)',
                   border: InputBorder.none,
                   isDense: true,
                 ),
               ),
             ),
             wrapField(
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              Column(
                 children: [
+                  // Phần nhập IMEI
                   Expanded(
                     child: Autocomplete<String>(
                       optionsBuilder: (TextEditingValue textEditingValue) {
@@ -1207,9 +1302,50 @@ class _TransferReceiveFormState extends State<TransferReceiveForm> {
                       },
                     ),
                   ),
-                  IconButton(
-                    onPressed: _scanQRCode,
-                    icon: const Icon(Icons.qr_code_scanner),
+                  // 2 nút quét
+                  Row(
+                    children: [
+                      // Nút quét QR (màu vàng)
+                      Expanded(
+                        child: Container(
+                          height: 24, // Chiều cao bằng 1/2 của phần còn lại
+                          margin: const EdgeInsets.only(right: 4),
+                          child: ElevatedButton.icon(
+                            onPressed: _scanQRCode,
+                            icon: const Icon(Icons.qr_code_scanner, size: 16),
+                            label: const Text('QR', style: TextStyle(fontSize: 12)),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.amber,
+                              foregroundColor: Colors.black,
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      // Nút quét Text (màu xanh lá cây)
+                      Expanded(
+                        child: Container(
+                          height: 24, // Chiều cao bằng 1/2 của phần còn lại
+                          margin: const EdgeInsets.only(left: 4),
+                          child: ElevatedButton.icon(
+                            onPressed: _scanText,
+                            icon: const Icon(Icons.text_fields, size: 16),
+                            label: const Text('IMEI', style: TextStyle(fontSize: 12)),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.green,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),

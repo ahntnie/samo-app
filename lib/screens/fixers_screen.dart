@@ -665,6 +665,35 @@ class _FixerDetailsDialogState extends State<FixerDetailsDialog> {
 
       Sheet sheet = excel['GiaoDichDonViFixLoi'];
 
+      // Thêm thông tin đối tác
+      final fixerName = widget.fixer['name']?.toString() ?? '';
+      final fixerPhone = widget.fixer['phone']?.toString() ?? '';
+      final fixerAddress = widget.fixer['address']?.toString() ?? '';
+      final debtVnd = widget.fixer['debt_vnd'] as num? ?? 0;
+      final debtCny = widget.fixer['debt_cny'] as num? ?? 0;
+      final debtUsd = widget.fixer['debt_usd'] as num? ?? 0;
+      final debtDetails = <String>[];
+      if (debtVnd != 0) debtDetails.add('${formatNumber(debtVnd)} VND');
+      if (debtCny != 0) debtDetails.add('${formatNumber(debtCny)} CNY');
+      if (debtUsd != 0) debtDetails.add('${formatNumber(debtUsd)} USD');
+      final debtText = debtDetails.isNotEmpty ? debtDetails.join(', ') : '0 VND';
+
+      sheet.cell(CellIndex.indexByString("A1")).value = TextCellValue('Tên đơn vị fix lỗi: $fixerName');
+      sheet.cell(CellIndex.indexByString("A2")).value = TextCellValue('Số điện thoại: $fixerPhone');
+      sheet.cell(CellIndex.indexByString("A3")).value = TextCellValue('Địa chỉ: $fixerAddress');
+      sheet.cell(CellIndex.indexByString("A4")).value = TextCellValue('Công nợ: $debtText');
+      
+      int currentRow = 5;
+      
+      // Thêm thông tin bộ lọc thời gian nếu có
+      if (startDate != null && endDate != null) {
+        final startDateStr = formatDate(startDate!.toIso8601String());
+        final endDateStr = formatDate(endDate!.toIso8601String());
+        sheet.cell(CellIndex.indexByString("A$currentRow")).value = TextCellValue('Thời gian: Từ $startDateStr đến $endDateStr');
+        currentRow++;
+      }
+
+      // Thêm tiêu đề bảng
       List<TextCellValue> headers = [
         TextCellValue('Loại giao dịch'),
         TextCellValue('Ngày'),
@@ -680,7 +709,11 @@ class _FixerDetailsDialogState extends State<FixerDetailsDialog> {
         TextCellValue('Ghi chú'),
       ];
 
-      sheet.appendRow(headers);
+      for (int i = 0; i < headers.length; i++) {
+        final columnLetter = String.fromCharCode(65 + i);
+        sheet.cell(CellIndex.indexByString("${columnLetter}$currentRow")).value = headers[i];
+      }
+      currentRow++;
 
       for (int i = 0; i < exportTransactions.length; i++) {
         final transaction = exportTransactions[i];
@@ -714,7 +747,11 @@ class _FixerDetailsDialogState extends State<FixerDetailsDialog> {
           TextCellValue(note),
         ];
 
-        sheet.appendRow(row);
+        for (int j = 0; j < row.length; j++) {
+          final columnLetter = String.fromCharCode(65 + j);
+          sheet.cell(CellIndex.indexByString("${columnLetter}$currentRow")).value = row[j];
+        }
+        currentRow++;
       }
 
       Directory downloadsDir;
@@ -728,8 +765,8 @@ class _FixerDetailsDialogState extends State<FixerDetailsDialog> {
       }
 
       final now = DateTime.now();
-      final fixerName = widget.fixer['name']?.toString() ?? 'Unknown';
-      final fileName = 'Báo Cáo Giao Dịch Đơn Vị Fix Lỗi $fixerName ${now.day}_${now.month}_${now.year} ${now.hour}_${now.minute}_${now.second}.xlsx';
+      final fixerNameForFile = widget.fixer['name']?.toString() ?? 'Unknown';
+      final fileName = 'Báo Cáo Giao Dịch Đơn Vị Fix Lỗi $fixerNameForFile ${now.day}_${now.month}_${now.year} ${now.hour}_${now.minute}_${now.second}.xlsx';
       final filePath = '${downloadsDir.path}/$fileName';
       final file = File(filePath);
 

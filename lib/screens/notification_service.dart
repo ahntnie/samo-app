@@ -145,17 +145,6 @@ class NotificationService {
     print('App state updated: isForeground = $_isAppInForeground');
   }
 
-  static Future<bool> _checkSupabaseConnection() async {
-    try {
-      await _tenantClient.from('device_tokens').select().limit(1);
-      print('Kết nối Supabase thành công');
-      return true;
-    } catch (e) {
-      print('Kết nối Supabase thất bại: $e');
-      return false;
-    }
-  }
-
   static Future<void> _saveDeviceToken(String token) async {
     try {
       final existingToken =
@@ -194,7 +183,7 @@ class NotificationService {
             badge: true,
             sound: true,
           );
-          
+
       const AndroidNotificationDetails androidPlatformChannelSpecifics =
           AndroidNotificationDetails(
             'high_importance_channel',
@@ -254,6 +243,8 @@ class NotificationService {
     Function callback,
   ) async {
     await _flutterLocalNotificationsPlugin.zonedSchedule(
+      uiLocalNotificationDateInterpretation:
+          UILocalNotificationDateInterpretation.absoluteTime,
       id,
       title,
       body,
@@ -267,8 +258,6 @@ class NotificationService {
         ),
       ),
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-      uiLocalNotificationDateInterpretation:
-          UILocalNotificationDateInterpretation.absoluteTime,
       matchDateTimeComponents: DateTimeComponents.time,
       payload: 'daily',
     );

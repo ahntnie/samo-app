@@ -866,70 +866,76 @@ class _OverviewScreenState extends State<OverviewScreen> with SingleTickerProvid
   }
 
   Widget _buildBusinessTab() {
-    return ListView(
-      children: [
-        _buildTimeFilter(),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-          child: Container(
-            decoration: BoxDecoration(
-              border: Border.all(color: Colors.grey),
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: DropdownButtonFormField<String>(
-              value: _selectedWarehouse,
-              hint: const Text('Chi nhánh'),
-              items: _warehouseOptions.map((option) {
-                return DropdownMenuItem(
-                  value: option,
-                  child: Text(option),
-                );
-              }).toList(),
-              onChanged: (value) {
-                setState(() {
-                  _selectedWarehouse = value;
-                });
-                fetchAllData();
-              },
-              decoration: const InputDecoration(
-                border: InputBorder.none,
-                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+    return RefreshIndicator(
+      onRefresh: fetchAllData,
+      child: ListView(
+        children: [
+          _buildTimeFilter(),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            child: Container(
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.grey),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: DropdownButtonFormField<String>(
+                value: _selectedWarehouse,
+                hint: const Text('Chi nhánh'),
+                items: _warehouseOptions.map((option) {
+                  return DropdownMenuItem(
+                    value: option,
+                    child: Text(option),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  setState(() {
+                    _selectedWarehouse = value;
+                  });
+                  fetchAllData();
+                },
+                decoration: const InputDecoration(
+                  border: InputBorder.none,
+                  contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                ),
               ),
             ),
           ),
-        ),
-        if (widget.permissions.contains('view_company_value'))
-          _buildHeaderTile('Giá trị công ty', '${formatMoney(companyValue)} VND', Colors.purple),
-        _buildHeaderTile('Doanh số', '$soldProductsCount sp / ${formatMoney(revenue)} VND', Colors.green),
-        if (widget.permissions.contains('view_profit'))
-          _buildHeaderTile('Lợi nhuận', '${formatMoney(profit)} VND', Colors.orange),
-        _buildLineChart('Doanh số và lợi nhuận theo thời gian', revenueSpots, Colors.green, spots2: profitSpots, color2: Colors.orange),
-      ],
+          if (widget.permissions.contains('view_company_value'))
+            _buildHeaderTile('Giá trị công ty', '${formatMoney(companyValue)} VND', Colors.purple),
+          _buildHeaderTile('Doanh số', '$soldProductsCount sp / ${formatMoney(revenue)} VND', Colors.green),
+          if (widget.permissions.contains('view_profit'))
+            _buildHeaderTile('Lợi nhuận', '${formatMoney(profit)} VND', Colors.orange),
+          _buildLineChart('Doanh số và lợi nhuận theo thời gian', revenueSpots, Colors.green, spots2: profitSpots, color2: Colors.orange),
+        ],
+      ),
     );
   }
 
   Widget _buildFinanceTab() {
-    return ListView(
-      children: [
-        _buildTimeFilter(),
-        ...accounts.map((e) {
-          final currency = e['currency']?.toString() ?? 'VND';
-          final balance = (e['balance'] is String ? num.tryParse(e['balance'])?.toDouble() : (e['balance'] as num?)?.toDouble()) ?? 0.0;
-          return _buildHeaderTile(
-            e['name'],
-            '${formatMoney(balance, currency: currency)} $currency',
-            Colors.blue,
-          );
-        }),
-        _buildHeaderTile('Công nợ nhà cung cấp', '${formatMoney(totalSupplierDebt)} VND', Colors.orange),
-        _buildHeaderTile('Công nợ khách hàng', '${formatMoney(totalCustomerDebt)} VND', Colors.orange),
-        _buildHeaderTile('Công nợ đơn vị fix lỗi', '${formatMoney(totalFixerDebt)} VND', Colors.orange),
-        _buildHeaderTile('Công nợ đơn vị vận chuyển', '${formatMoney(totalTransporterDebt)} VND', Colors.orange),
-        _buildHeaderTile('Tổng tiền hàng tồn', '${formatMoney(totalInventoryCost)} VND', Colors.orange),
-        _buildHeaderTile('Tổng thu', '${formatMoney(totalIncome)} VND', Colors.green),
-        _buildHeaderTile('Tổng chi', '${formatMoney(totalExpense)} VND', Colors.red),
-        _buildLineChart('Tổng thu và chi theo thời gian', incomeSpots, Colors.green, spots2: expenseSpots, color2: Colors.red),
-      ],
+    return RefreshIndicator(
+      onRefresh: fetchAllData,
+      child: ListView(
+        children: [
+          _buildTimeFilter(),
+          ...accounts.map((e) {
+            final currency = e['currency']?.toString() ?? 'VND';
+            final balance = (e['balance'] is String ? num.tryParse(e['balance'])?.toDouble() : (e['balance'] as num?)?.toDouble()) ?? 0.0;
+            return _buildHeaderTile(
+              e['name'],
+              '${formatMoney(balance, currency: currency)} $currency',
+              Colors.blue,
+            );
+          }),
+          _buildHeaderTile('Công nợ nhà cung cấp', '${formatMoney(totalSupplierDebt)} VND', Colors.orange),
+          _buildHeaderTile('Công nợ khách hàng', '${formatMoney(totalCustomerDebt)} VND', Colors.orange),
+          _buildHeaderTile('Công nợ đơn vị fix lỗi', '${formatMoney(totalFixerDebt)} VND', Colors.orange),
+          _buildHeaderTile('Công nợ đơn vị vận chuyển', '${formatMoney(totalTransporterDebt)} VND', Colors.orange),
+          _buildHeaderTile('Tổng tiền hàng tồn', '${formatMoney(totalInventoryCost)} VND', Colors.orange),
+          _buildHeaderTile('Tổng thu', '${formatMoney(totalIncome)} VND', Colors.green),
+          _buildHeaderTile('Tổng chi', '${formatMoney(totalExpense)} VND', Colors.red),
+          _buildLineChart('Tổng thu và chi theo thời gian', incomeSpots, Colors.green, spots2: expenseSpots, color2: Colors.red),
+        ],
+      ),
     );
   }
 
@@ -963,20 +969,26 @@ class _OverviewScreenState extends State<OverviewScreen> with SingleTickerProvid
       );
     }
 
-    return ListView(
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          child: Row(
-            children: [
-              _buildCategoryFilter(),
-              _buildWarehouseFilter(),
-            ],
+    return RefreshIndicator(
+      onRefresh: () async {
+        await fetchAllData();
+        await fetchProductDistribution(selectedStatus);
+      },
+      child: ListView(
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Row(
+              children: [
+                _buildCategoryFilter(),
+                _buildWarehouseFilter(),
+              ],
+            ),
           ),
-        ),
-        ...stockWidgets,
-        _buildPieChart(),
-      ],
+          ...stockWidgets,
+          _buildPieChart(),
+        ],
+      ),
     );
   }
 

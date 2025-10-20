@@ -6,6 +6,8 @@ import 'package:uuid/uuid.dart';
 import 'dart:math' as math;
 import 'dart:developer' as developer; // Added import
 import '../../notification_service.dart';
+import 'package:flutter/services.dart';
+import '../../text_scanner_screen.dart';
 
 // Utility class for caching product names
 class CacheUtil {
@@ -226,6 +228,11 @@ class _TransferLocalFormState extends State<TransferLocalForm> {
     return snapshotData;
   }
 
+  // Hàm phát âm thanh beep
+  void _playBeepSound() {
+    SystemSound.play(SystemSoundType.click);
+  }
+
   // Scan QR code for IMEI
   Future<void> _scanQRCode() async {
     try {
@@ -235,6 +242,9 @@ class _TransferLocalFormState extends State<TransferLocalForm> {
       );
 
       if (scannedData != null && mounted) {
+        // Phát âm thanh beep khi quét thành công
+        _playBeepSound();
+        
         setState(() {
           imei = scannedData;
           imeiController.text = scannedData;
@@ -266,6 +276,61 @@ class _TransferLocalFormState extends State<TransferLocalForm> {
           builder: (context) => AlertDialog(
             title: const Text('Thông báo'),
             content: Text('Lỗi khi quét QR code: $e'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Đóng'),
+              ),
+            ],
+          ),
+        );
+      }
+    }
+  }
+
+  // Scan text for IMEI
+  Future<void> _scanText() async {
+    try {
+      final scannedData = await Navigator.push<String?>(
+        context,
+        MaterialPageRoute(builder: (context) => const TextScannerScreen()),
+      );
+
+      if (scannedData != null && mounted) {
+        // Phát âm thanh beep khi quét thành công
+        _playBeepSound();
+        
+        setState(() {
+          imei = scannedData;
+          imeiController.text = scannedData;
+          imeiError = _checkDuplicateImeis(scannedData);
+        });
+
+        if (imeiError == null) {
+          final error = await _checkInventoryStatus(scannedData);
+          if (mounted) {
+            setState(() {
+              imeiError = error;
+            });
+            if (error == null) {
+              setState(() {
+                imeiList.insert(0, scannedData.trim());
+                imei = '';
+                imeiController.text = '';
+                imeiError = null;
+                imeiFocusNode.unfocus();
+              });
+            }
+          }
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        await showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Thông báo'),
+            content: Text('Lỗi khi quét text: $e'),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context),
@@ -492,7 +557,7 @@ class _TransferLocalFormState extends State<TransferLocalForm> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       margin: const EdgeInsets.symmetric(vertical: 4),
-      height: isImeiField ? 48 : isImeiList ? 120 : 48,
+      height: isImeiField ? 72 : isImeiList ? 120 : 48, // Tăng chiều cao IMEI field từ 48 lên 72 (50%)
       decoration: BoxDecoration(
         color: Colors.grey.shade200,
         borderRadius: BorderRadius.circular(8),
@@ -648,9 +713,9 @@ class _TransferLocalFormState extends State<TransferLocalForm> {
               ),
             ),
             wrapField(
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              Column(
                 children: [
+                  // Phần nhập IMEI
                   Expanded(
                     child: Autocomplete<String>(
                       optionsBuilder: (TextEditingValue textEditingValue) {
@@ -751,9 +816,50 @@ class _TransferLocalFormState extends State<TransferLocalForm> {
                       },
                     ),
                   ),
-                  IconButton(
-                    onPressed: _scanQRCode,
-                    icon: const Icon(Icons.qr_code_scanner),
+                  // 2 nút quét
+                  Row(
+                    children: [
+                      // Nút quét QR (màu vàng)
+                      Expanded(
+                        child: Container(
+                          height: 24, // Chiều cao bằng 1/2 của phần còn lại
+                          margin: const EdgeInsets.only(right: 4),
+                          child: ElevatedButton.icon(
+                            onPressed: _scanQRCode,
+                            icon: const Icon(Icons.qr_code_scanner, size: 16),
+                            label: const Text('QR', style: TextStyle(fontSize: 12)),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.amber,
+                              foregroundColor: Colors.black,
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      // Nút quét Text (màu xanh lá cây)
+                      Expanded(
+                        child: Container(
+                          height: 24, // Chiều cao bằng 1/2 của phần còn lại
+                          margin: const EdgeInsets.only(left: 4),
+                          child: ElevatedButton.icon(
+                            onPressed: _scanText,
+                            icon: const Icon(Icons.text_fields, size: 16),
+                            label: const Text('IMEI', style: TextStyle(fontSize: 12)),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.green,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),

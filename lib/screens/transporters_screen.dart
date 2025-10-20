@@ -709,11 +709,35 @@ class _TransporterDetailsDialogState extends State<TransporterDetailsDialog> {
 
       Sheet sheet = excel['GiaoDichDonViVanChuyen'];
 
-      sheet.cell(CellIndex.indexByString("A1")).value = TextCellValue('Loại giao dịch');
-      sheet.cell(CellIndex.indexByString("B1")).value = TextCellValue('Ngày');
-      sheet.cell(CellIndex.indexByString("C1")).value = TextCellValue('Số tiền');
-      sheet.cell(CellIndex.indexByString("D1")).value = TextCellValue('Đơn vị tiền');
-      sheet.cell(CellIndex.indexByString("E1")).value = TextCellValue('Chi tiết');
+      // Thêm thông tin đối tác
+      final transporterName = widget.transporter['name']?.toString() ?? '';
+      final transporterPhone = widget.transporter['phone']?.toString() ?? '';
+      final transporterAddress = widget.transporter['address']?.toString() ?? '';
+      final debt = widget.transporter['debt'] as num? ?? 0;
+      final debtText = debt != 0 ? '${formatNumber(debt)} VND' : '0 VND';
+
+      sheet.cell(CellIndex.indexByString("A1")).value = TextCellValue('Tên đơn vị vận chuyển: $transporterName');
+      sheet.cell(CellIndex.indexByString("A2")).value = TextCellValue('Số điện thoại: $transporterPhone');
+      sheet.cell(CellIndex.indexByString("A3")).value = TextCellValue('Địa chỉ: $transporterAddress');
+      sheet.cell(CellIndex.indexByString("A4")).value = TextCellValue('Công nợ: $debtText');
+      
+      int currentRow = 5;
+      
+      // Thêm thông tin bộ lọc thời gian nếu có
+      if (startDate != null && endDate != null) {
+        final startDateStr = formatDate(startDate!.toIso8601String());
+        final endDateStr = formatDate(endDate!.toIso8601String());
+        sheet.cell(CellIndex.indexByString("A$currentRow")).value = TextCellValue('Thời gian: Từ $startDateStr đến $endDateStr');
+        currentRow++;
+      }
+
+      // Thêm tiêu đề bảng
+      sheet.cell(CellIndex.indexByString("A$currentRow")).value = TextCellValue('Loại giao dịch');
+      sheet.cell(CellIndex.indexByString("B$currentRow")).value = TextCellValue('Ngày');
+      sheet.cell(CellIndex.indexByString("C$currentRow")).value = TextCellValue('Số tiền');
+      sheet.cell(CellIndex.indexByString("D$currentRow")).value = TextCellValue('Đơn vị tiền');
+      sheet.cell(CellIndex.indexByString("E$currentRow")).value = TextCellValue('Chi tiết');
+      currentRow++;
 
       for (int i = 0; i < exportTransactions.length; i++) {
         final transaction = exportTransactions[i];
@@ -735,11 +759,12 @@ class _TransporterDetailsDialogState extends State<TransporterDetailsDialog> {
                         ? 'Tài khoản: ${transaction['account']}, Ghi chú: ${transaction['note'] ?? ''}'
                         : '';
 
-        sheet.cell(CellIndex.indexByString("A${i + 2}")).value = TextCellValue(type);
-        sheet.cell(CellIndex.indexByString("B${i + 2}")).value = TextCellValue(createdAt);
-        sheet.cell(CellIndex.indexByString("C${i + 2}")).value = TextCellValue(formattedAmount);
-        sheet.cell(CellIndex.indexByString("D${i + 2}")).value = TextCellValue(currency);
-        sheet.cell(CellIndex.indexByString("E${i + 2}")).value = TextCellValue(details);
+        sheet.cell(CellIndex.indexByString("A$currentRow")).value = TextCellValue(type);
+        sheet.cell(CellIndex.indexByString("B$currentRow")).value = TextCellValue(createdAt);
+        sheet.cell(CellIndex.indexByString("C$currentRow")).value = TextCellValue(formattedAmount);
+        sheet.cell(CellIndex.indexByString("D$currentRow")).value = TextCellValue(currency);
+        sheet.cell(CellIndex.indexByString("E$currentRow")).value = TextCellValue(details);
+        currentRow++;
       }
 
       if (excel.sheets.containsKey('Sheet1')) {
@@ -760,8 +785,8 @@ class _TransporterDetailsDialogState extends State<TransporterDetailsDialog> {
       }
 
       final now = DateTime.now();
-      final transporterName = widget.transporter['name']?.toString() ?? 'Unknown';
-      final fileName = 'Báo Cáo Giao Dịch Đơn Vị Vận Chuyển $transporterName ${now.day}_${now.month}_${now.year} ${now.hour}_${now.minute}_${now.second}.xlsx';
+      final transporterNameForFile = widget.transporter['name']?.toString() ?? 'Unknown';
+      final fileName = 'Báo Cáo Giao Dịch Đơn Vị Vận Chuyển $transporterNameForFile ${now.day}_${now.month}_${now.year} ${now.hour}_${now.minute}_${now.second}.xlsx';
       final filePath = '${downloadsDir.path}/$fileName';
       final file = File(filePath);
 

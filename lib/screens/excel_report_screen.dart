@@ -266,12 +266,9 @@ class _ExcelReportScreenState extends State<ExcelReportScreen> {
             final cellValueRaw = row[columnName];
             String cellValueString;
 
-            if (columnName == 'product') {
+            if (columnName == 'product_name') {
               final productId = row['product_id']?.toString();
               cellValueString = productId != null ? productIdToName[productId] ?? '' : '';
-            } else if (columnName == 'warehouse') {
-              final warehouseId = row['warehouse_id']?.toString();
-              cellValueString = warehouseId != null ? warehouseIdToName[warehouseId] ?? '' : '';
             } else if (columnName == 'warehouse_name') {
               final warehouseId = row['warehouse_id']?.toString();
               cellValueString = warehouseId != null ? warehouseIdToName[warehouseId] ?? '' : '';
@@ -369,7 +366,8 @@ class _ExcelReportScreenState extends State<ExcelReportScreen> {
         'import_orders': {
           'ID': 'id',
           'Nhà cung cấp': 'supplier',
-          'Sản phẩm': 'product',
+          'Sản phẩm': 'product_name',
+          'ID Sản phẩm': 'product_id',
           'IMEI': 'imei',
           'Số lượng': 'quantity',
           'Giá': 'price',
@@ -378,7 +376,8 @@ class _ExcelReportScreenState extends State<ExcelReportScreen> {
           'Ghi chú': 'note',
           'Ngày tạo': 'created_at',
           'Tổng tiền': 'total_amount',
-          'Kho hàng': 'warehouse',
+          'Kho hàng': 'warehouse_name',
+          'ID Kho': 'warehouse_id',
           'Đã hủy': 'iscancelled',
         },
         'products': {
@@ -426,8 +425,10 @@ class _ExcelReportScreenState extends State<ExcelReportScreen> {
         },
         'fix_receive_orders': {
           'ID': 'id',
+          'Ticket ID': 'ticket_id',
           'Đơn vị sửa chữa': 'fixer',
           'Sản phẩm': 'product',
+          'ID Sản phẩm': 'product_id',
           'IMEI': 'imei',
           'Số lượng': 'quantity',
           'Giá': 'price',
@@ -436,16 +437,20 @@ class _ExcelReportScreenState extends State<ExcelReportScreen> {
           'Ngày tạo': 'created_at',
           'Đã hủy': 'iscancelled',
           'Ghi chú': 'note',
+          'ID Kho': 'warehouse_id',
         },
         'fix_send_orders': {
           'ID': 'id',
+          'Ticket ID': 'ticket_id',
           'Đơn vị sửa chữa': 'fixer',
           'Sản phẩm': 'product',
+          'ID Sản phẩm': 'product_id',
           'IMEI': 'imei',
           'Số lượng': 'quantity',
           'Ngày tạo': 'created_at',
           'Đã hủy': 'iscancelled',
           'Ghi chú': 'note',
+          'ID Kho': 'warehouse_id',
         },
         'financial_orders': {
           'ID': 'id',
@@ -482,8 +487,10 @@ class _ExcelReportScreenState extends State<ExcelReportScreen> {
         },
         'reimport_orders': {
           'ID': 'id',
+          'Ticket ID': 'ticket_id',
           'Khách hàng': 'customer',
           'Sản phẩm': 'product',
+          'ID Sản phẩm': 'product_id',
           'IMEI': 'imei',
           'Số lượng': 'quantity',
           'Giá': 'price',
@@ -492,6 +499,7 @@ class _ExcelReportScreenState extends State<ExcelReportScreen> {
           'Ghi chú': 'note',
           'Ngày tạo': 'created_at',
           'Đã hủy': 'iscancelled',
+          'ID Kho': 'warehouse_id',
         },
         'transporters': {
           'Tên': 'name',
@@ -520,8 +528,11 @@ class _ExcelReportScreenState extends State<ExcelReportScreen> {
         },
         'sale_orders': {
           'ID': 'id',
+          'Ticket ID': 'ticket_id',
+          'Nhân viên bán': 'saleman',
           'Khách hàng': 'customer',
-          'Sản phẩm': 'product',
+          'Sản phẩm': 'product_name',
+          'ID Sản phẩm': 'product_id',
           'IMEI': 'imei',
           'Số lượng': 'quantity',
           'Giá': 'price',
@@ -533,11 +544,16 @@ class _ExcelReportScreenState extends State<ExcelReportScreen> {
           'Đơn vị ship COD': 'transporter',
           'Tiền khách cọc': 'customer_price',
           'Tiền COD vận': 'transporter_price',
+          'Kho hàng': 'warehouse_name',
+          'ID Kho': 'warehouse_id',
         },
         'return_orders': {
           'ID': 'id',
+          'Ticket ID': 'ticket_id',
           'Nhà cung cấp': 'supplier',
           'Sản phẩm': 'product',
+          'Tên sản phẩm': 'product_name',
+          'ID Sản phẩm': 'product_id',
           'IMEI': 'imei',
           'Số lượng': 'quantity',
           'Giá': 'price',
@@ -546,6 +562,8 @@ class _ExcelReportScreenState extends State<ExcelReportScreen> {
           'Ghi chú': 'note',
           'Ngày tạo': 'created_at',
           'Đã hủy': 'iscancelled',
+          'ID Kho': 'warehouse_id',
+          'Tổng tiền': 'total_amount',
         },
         'financial_accounts': {
           'ID': 'id',
@@ -556,12 +574,15 @@ class _ExcelReportScreenState extends State<ExcelReportScreen> {
         },
         'transporter_orders': {
           'ID': 'id',
+          'Ticket ID': 'ticket_id',
           'IMEI': 'imei',
           'Đơn vị vận chuyển': 'transporter',
           'Kho hàng': 'warehouse',
+          'ID Kho': 'warehouse_id',
           'Phí vận chuyển': 'transport_fee',
           'Ngày tạo': 'created_at',
           'Sản phẩm': 'product',
+          'ID Sản phẩm': 'product_id',
           'Loại': 'type',
           'Đã hủy': 'iscancelled',
         },
@@ -752,7 +773,8 @@ class _ExcelReportScreenState extends State<ExcelReportScreen> {
         'Phiếu nhập hàng': {
           'ID': 'id',
           'Nhà cung cấp': 'supplier',
-          'Sản phẩm': 'product',
+          'Sản phẩm': 'product_name',
+          'ID Sản phẩm': 'product_id',
           'IMEI': 'imei',
           'Số lượng': 'quantity',
           'Giá': 'price',
@@ -761,7 +783,8 @@ class _ExcelReportScreenState extends State<ExcelReportScreen> {
           'Ghi chú': 'note',
           'Ngày tạo': 'created_at',
           'Tổng tiền': 'total_amount',
-          'Kho hàng': 'warehouse',
+          'Kho hàng': 'warehouse_name',
+          'ID Kho': 'warehouse_id',
           'Đã hủy': 'iscancelled',
         },
         'Sản phẩm': {
@@ -809,8 +832,10 @@ class _ExcelReportScreenState extends State<ExcelReportScreen> {
         },
         'Phiếu nhận sửa': {
           'ID': 'id',
+          'Ticket ID': 'ticket_id',
           'Đơn vị sửa chữa': 'fixer',
           'Sản phẩm': 'product',
+          'ID Sản phẩm': 'product_id',
           'IMEI': 'imei',
           'Số lượng': 'quantity',
           'Giá': 'price',
@@ -819,16 +844,20 @@ class _ExcelReportScreenState extends State<ExcelReportScreen> {
           'Ngày tạo': 'created_at',
           'Đã hủy': 'iscancelled',
           'Ghi chú': 'note',
+          'ID Kho': 'warehouse_id',
         },
         'Phiếu gửi sửa': {
           'ID': 'id',
+          'Ticket ID': 'ticket_id',
           'Đơn vị sửa chữa': 'fixer',
           'Sản phẩm': 'product',
+          'ID Sản phẩm': 'product_id',
           'IMEI': 'imei',
           'Số lượng': 'quantity',
           'Ngày tạo': 'created_at',
           'Đã hủy': 'iscancelled',
           'Ghi chú': 'note',
+          'ID Kho': 'warehouse_id',
         },
         'Phiếu tài chính': {
           'ID': 'id',
@@ -865,8 +894,10 @@ class _ExcelReportScreenState extends State<ExcelReportScreen> {
         },
         'Phiếu nhập lại hàng': {
           'ID': 'id',
+          'Ticket ID': 'ticket_id',
           'Khách hàng': 'customer',
           'Sản phẩm': 'product',
+          'ID Sản phẩm': 'product_id',
           'IMEI': 'imei',
           'Số lượng': 'quantity',
           'Giá': 'price',
@@ -875,6 +906,7 @@ class _ExcelReportScreenState extends State<ExcelReportScreen> {
           'Ghi chú': 'note',
           'Ngày tạo': 'created_at',
           'Đã hủy': 'iscancelled',
+          'ID Kho': 'warehouse_id',
         },
         'Đơn vị vận chuyển': {
           'Tên': 'name',
@@ -903,8 +935,11 @@ class _ExcelReportScreenState extends State<ExcelReportScreen> {
         },
         'Phiếu bán hàng': {
           'ID': 'id',
+          'Ticket ID': 'ticket_id',
+          'Nhân viên bán': 'saleman',
           'Khách hàng': 'customer',
-          'Sản phẩm': 'product',
+          'Sản phẩm': 'product_name',
+          'ID Sản phẩm': 'product_id',
           'IMEI': 'imei',
           'Số lượng': 'quantity',
           'Giá': 'price',
@@ -916,11 +951,16 @@ class _ExcelReportScreenState extends State<ExcelReportScreen> {
           'Đơn vị ship COD': 'transporter',
           'Tiền khách cọc': 'customer_price',
           'Tiền COD vận': 'transporter_price',
+          'Kho hàng': 'warehouse_name',
+          'ID Kho': 'warehouse_id',
         },
         'Phiếu trả hàng': {
           'ID': 'id',
+          'Ticket ID': 'ticket_id',
           'Nhà cung cấp': 'supplier',
           'Sản phẩm': 'product',
+          'Tên sản phẩm': 'product_name',
+          'ID Sản phẩm': 'product_id',
           'IMEI': 'imei',
           'Số lượng': 'quantity',
           'Giá': 'price',
@@ -929,6 +969,8 @@ class _ExcelReportScreenState extends State<ExcelReportScreen> {
           'Ghi chú': 'note',
           'Ngày tạo': 'created_at',
           'Đã hủy': 'iscancelled',
+          'ID Kho': 'warehouse_id',
+          'Tổng tiền': 'total_amount',
         },
         'Tài khoản tài chính': {
           'ID': 'id',
@@ -939,12 +981,15 @@ class _ExcelReportScreenState extends State<ExcelReportScreen> {
         },
         'Phiếu vận chuyển': {
           'ID': 'id',
+          'Ticket ID': 'ticket_id',
           'IMEI': 'imei',
           'Đơn vị vận chuyển': 'transporter',
           'Kho hàng': 'warehouse',
+          'ID Kho': 'warehouse_id',
           'Phí vận chuyển': 'transport_fee',
           'Ngày tạo': 'created_at',
           'Sản phẩm': 'product',
+          'ID Sản phẩm': 'product_id',
           'Loại': 'type',
           'Đã hủy': 'iscancelled',
         },
@@ -1022,6 +1067,16 @@ class _ExcelReportScreenState extends State<ExcelReportScreen> {
         'debt',
       ];
 
+      final uuidColumns = [
+        'product_id',
+        'warehouse_id',
+        'id',
+      ];
+
+      final textColumns = [
+        'ticket_id',
+      ];
+
       const batchSize = 100;
 
       Map<String, List<Map<String, dynamic>>> tableData = {};
@@ -1080,6 +1135,12 @@ class _ExcelReportScreenState extends State<ExcelReportScreen> {
             } else if (timestampColumns.contains(columnName)) {
               rowData[columnName] = cellValueString;
             } else if (columnName == 'imei') {
+              rowData[columnName] = cellValueString;
+            } else if (uuidColumns.contains(columnName)) {
+              // Xử lý UUID columns - giữ nguyên dạng string
+              rowData[columnName] = cellValueString;
+            } else if (textColumns.contains(columnName)) {
+              // Xử lý text columns - giữ nguyên dạng string
               rowData[columnName] = cellValueString;
             } else if (bigintColumns.contains(columnName)) {
               final numericValue = double.tryParse(cellValueString);

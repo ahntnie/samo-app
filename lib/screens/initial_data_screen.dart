@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import 'dart:math';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'text_scanner_screen.dart';
 
 class ThousandsFormatterLocal extends TextInputFormatter {
   @override
@@ -245,6 +246,11 @@ class _InitialDataScreenState extends State<InitialDataScreen> with SingleTicker
     return null;
   }
 
+  // Hàm phát âm thanh beep
+  void _playBeepSound() {
+    SystemSound.play(SystemSoundType.click);
+  }
+
   Future<void> _scanQRCode() async {
     try {
       final scannedData = await Navigator.push(
@@ -255,6 +261,9 @@ class _InitialDataScreenState extends State<InitialDataScreen> with SingleTicker
       );
 
       if (scannedData != null && scannedData is String) {
+        // Phát âm thanh beep khi quét thành công
+        _playBeepSound();
+        
         setState(() {
           if (imei != null && imei!.isNotEmpty) {
             imei = '$imei\n$scannedData';
@@ -290,6 +299,51 @@ class _InitialDataScreenState extends State<InitialDataScreen> with SingleTicker
     }
   }
 
+  Future<void> _scanText() async {
+    try {
+      final scannedData = await Navigator.push<String?>(
+        context,
+        MaterialPageRoute(builder: (context) => const TextScannerScreen()),
+      );
+
+      if (scannedData != null && mounted) {
+        // Phát âm thanh beep khi quét thành công
+        _playBeepSound();
+        
+        setState(() {
+          if (imei != null && imei!.isNotEmpty) {
+            imei = '$imei\n$scannedData';
+          } else {
+            imei = scannedData;
+          }
+          imeiController.text = imei ?? '';
+          imeiError = _checkDuplicateImeis(imei!);
+        });
+
+        if (imeiError == null) {
+          await _checkProductStatus(imei!).then((error) {
+            setState(() {
+              imeiError = error;
+            });
+          });
+        }
+      }
+    } catch (e) {
+      await showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Lỗi'),
+          content: Text('Lỗi khi quét text: $e'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Đóng'),
+            ),
+          ],
+        ),
+      );
+    }
+  }
 
   Future<void> addCategoryDialog() async {
     String name = '';
@@ -530,13 +584,55 @@ class _InitialDataScreenState extends State<InitialDataScreen> with SingleTicker
 
   Future<void> addPartnerDialog() async {
     String name = '';
+    String? type;
+    String phone = '';
+    String address = '';
+    String note = '';
+
     await showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: Text('Thêm ${partnerTypeOptions.firstWhere((opt) => opt['value'] == selectedPartnerType)['display']}'),
-        content: TextField(
-          decoration: const InputDecoration(labelText: 'Tên đối tác'),
-          onChanged: (val) => name = val,
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                decoration: const InputDecoration(labelText: 'Tên đối tác'),
+                onChanged: (val) => name = val,
+              ),
+              if (selectedPartnerType == 'transporter') ...[
+                const SizedBox(height: 8),
+                DropdownButtonFormField<String>(
+                  value: type,
+                  decoration: const InputDecoration(labelText: 'Chủng loại'),
+                  items: const [
+                    DropdownMenuItem(
+                        value: 'vận chuyển nội địa', child: Text('Vận chuyển nội địa')),
+                    DropdownMenuItem(
+                        value: 'vận chuyển quốc tế', child: Text('Vận chuyển quốc tế')),
+                  ],
+                  onChanged: (val) => type = val,
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  decoration: const InputDecoration(labelText: 'Số điện thoại'),
+                  keyboardType: TextInputType.phone,
+                  onChanged: (val) => phone = val,
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  decoration: const InputDecoration(labelText: 'Địa chỉ'),
+                  onChanged: (val) => address = val,
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  decoration: const InputDecoration(labelText: 'Ghi chú'),
+                  onChanged: (val) => note = val,
+                ),
+              ],
+            ],
+          ),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Hủy')),
@@ -552,16 +648,26 @@ class _InitialDataScreenState extends State<InitialDataScreen> with SingleTicker
                               ? 'fix_units'
                               : 'transporters';
 
-                  await widget.tenantClient.from(table).insert(
-                        selectedPartnerType == 'transporter'
-                            ? {'name': name, 'debt': 0}
-                            : {
-                                'name': name,
-                                'debt_vnd': 0,
-                                'debt_cny': 0,
-                                'debt_usd': 0,
-                              },
-                      );
+                  Map<String, dynamic> insertData;
+                  if (selectedPartnerType == 'transporter') {
+                    insertData = {
+                      'name': name,
+                      'type': type,
+                      'phone': phone.isNotEmpty ? phone : null,
+                      'address': address.isNotEmpty ? address : null,
+                      'note': note.isNotEmpty ? note : null,
+                      'debt': 0,
+                    };
+                  } else {
+                    insertData = {
+                      'name': name,
+                      'debt_vnd': 0,
+                      'debt_cny': 0,
+                      'debt_usd': 0,
+                    };
+                  }
+
+                  await widget.tenantClient.from(table).insert(insertData);
 
                   setState(() {
                     partnerNames.add(name);
@@ -1021,14 +1127,15 @@ class _InitialDataScreenState extends State<InitialDataScreen> with SingleTicker
     );
   }
 
-  Widget wrapField(Widget child) {
+  Widget wrapField(Widget child, {bool isImeiField = false}) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       margin: const EdgeInsets.symmetric(vertical: 6),
+      height: isImeiField ? 120 : null, // Tăng chiều cao IMEI field lên 50% (từ 80 lên 120)
       decoration: BoxDecoration(
         color: Colors.grey.shade200,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: imeiError != null ? Colors.red : Colors.grey.shade300),
+        border: Border.all(color: imeiError != null && isImeiField ? Colors.red : Colors.grey.shade300),
       ),
       child: child,
     );
@@ -1183,59 +1290,82 @@ class _InitialDataScreenState extends State<InitialDataScreen> with SingleTicker
                             ),
                             if (!isAccessory)
                               wrapField(
-                                Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                Column(
                                   children: [
+                                    // Phần nhập IMEI
                                     Expanded(
-                                      child: SizedBox(
-                                        height: 80,
-                                        child: TextFormField(
-                                          controller: imeiController,
-                                          maxLines: null,
-                                          onChanged: (val) {
-                                            setState(() {
-                                              imei = val;
-                                              imeiError = _checkDuplicateImeis(val);
-                                            });
-                                            if (imeiError == null) {
-                                              _checkProductStatus(val).then((error) {
-                                                setState(() {
-                                                  imeiError = error;
-                                                });
+                                      child: TextFormField(
+                                        controller: imeiController,
+                                        maxLines: null,
+                                        onChanged: (val) {
+                                          setState(() {
+                                            imei = val;
+                                            imeiError = _checkDuplicateImeis(val);
+                                          });
+                                          if (imeiError == null) {
+                                            _checkProductStatus(val).then((error) {
+                                              setState(() {
+                                                imeiError = error;
                                               });
-                                            }
-                                          },
-                                          decoration: InputDecoration(
-                                            labelText: 'IMEI (mỗi dòng 1)',
-                                            border: InputBorder.none,
-                                            isDense: true,
-                                            errorText: imeiError,
-                                          ),
+                                            });
+                                          }
+                                        },
+                                        decoration: InputDecoration(
+                                          labelText: 'Nhập imei hoặc quét QR (mỗi dòng 1)',
+                                          border: InputBorder.none,
+                                          isDense: true,
+                                          errorText: imeiError,
                                         ),
                                       ),
                                     ),
-                                    PopupMenuButton<String>(
-                                      onSelected: (value) {
-                                        if (value == 'qr') {
-                                          _scanQRCode();
-                                        }
-                                      },
-                                      itemBuilder: (context) => [
-                                        const PopupMenuItem(
-                                          value: 'qr',
-                                          child: Row(
-                                            children: [
-                                              Icon(Icons.qr_code_scanner),
-                                              SizedBox(width: 8),
-                                              Text('Quét QR Code'),
-                                            ],
+                                    // 2 nút quét
+                                    Row(
+                                      children: [
+                                        // Nút quét QR (màu vàng)
+                                        Expanded(
+                                          child: Container(
+                                            height: 24, // Chiều cao bằng 1/2 của phần còn lại
+                                            margin: const EdgeInsets.only(right: 4),
+                                            child: ElevatedButton.icon(
+                                              onPressed: _scanQRCode,
+                                              icon: const Icon(Icons.qr_code_scanner, size: 16),
+                                              label: const Text('QR', style: TextStyle(fontSize: 12)),
+                                              style: ElevatedButton.styleFrom(
+                                                backgroundColor: Colors.amber,
+                                                foregroundColor: Colors.black,
+                                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                                shape: RoundedRectangleBorder(
+                                                  borderRadius: BorderRadius.circular(4),
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                        // Nút quét Text (màu xanh lá cây)
+                                        Expanded(
+                                          child: Container(
+                                            height: 24, // Chiều cao bằng 1/2 của phần còn lại
+                                            margin: const EdgeInsets.only(left: 4),
+                                            child: ElevatedButton.icon(
+                                              onPressed: _scanText,
+                                              icon: const Icon(Icons.text_fields, size: 16),
+                                              label: const Text('IMEI', style: TextStyle(fontSize: 12)),
+                                              style: ElevatedButton.styleFrom(
+                                                backgroundColor: Colors.green,
+                                                foregroundColor: Colors.white,
+                                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                                shape: RoundedRectangleBorder(
+                                                  borderRadius: BorderRadius.circular(4),
+                                                ),
+                                              ),
+                                            ),
                                           ),
                                         ),
                                       ],
-                                      child: const Icon(Icons.qr_code_scanner),
                                     ),
                                   ],
                                 ),
+                                isImeiField: true,
                               ),
                             Row(
                               children: [

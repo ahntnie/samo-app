@@ -4,6 +4,8 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:intl/intl.dart';
 import 'sale_summary.dart';
 import 'dart:math' as math;
+import 'package:flutter/services.dart';
+import '../../text_scanner_screen.dart';
 
 // Cache utility class
 class CacheUtil {
@@ -307,6 +309,11 @@ class _SaleFormState extends State<SaleForm> {
     }
   }
 
+  // Hàm phát âm thanh beep
+  void _playBeepSound() {
+    SystemSound.play(SystemSoundType.click);
+  }
+
   Future<void> _scanQRCode() async {
     try {
       final scannedData = await Navigator.push<String?>(
@@ -315,6 +322,9 @@ class _SaleFormState extends State<SaleForm> {
       );
 
       if (scannedData != null && scannedData.trim().isNotEmpty && mounted) {
+        // Phát âm thanh beep khi quét thành công
+        _playBeepSound();
+        
         setState(() {
           imei = scannedData;
           imeiController.text = scannedData;
@@ -348,6 +358,62 @@ class _SaleFormState extends State<SaleForm> {
           builder: (context) => AlertDialog(
             title: const Text('Thông báo'),
             content: Text('Lỗi khi quét QR code: $e'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Đóng'),
+              ),
+            ],
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _scanText() async {
+    try {
+      final scannedData = await Navigator.push<String?>(
+        context,
+        MaterialPageRoute(builder: (context) => const TextScannerScreen()),
+      );
+
+      if (scannedData != null && scannedData.trim().isNotEmpty && mounted) {
+        // Phát âm thanh beep khi quét thành công
+        _playBeepSound();
+        
+        setState(() {
+          imei = scannedData;
+          imeiController.text = scannedData;
+        });
+
+        final error = await _checkInventoryStatus(scannedData);
+        setState(() {
+          imeiError = error;
+        });
+        if (error == null) {
+          if (imeiList.contains(scannedData)) {
+            setState(() {
+              imeiError = 'IMEI "$scannedData" đã có trong danh sách!';
+              imei = '';
+              imeiController.text = '';
+            });
+          } else {
+            setState(() {
+              imeiList.insert(0, scannedData);
+              imei = '';
+              imeiController.text = '';
+              imeiError = null;
+            });
+          }
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        await showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Thông báo'),
+            content: Text('Lỗi khi quét text: $e'),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context),
@@ -536,95 +602,6 @@ class _SaleFormState extends State<SaleForm> {
     );
   }
 
-  void addProductDialog() async {
-    String name = '';
-    await showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Thêm sản phẩm'),
-        content: TextField(
-          decoration: const InputDecoration(labelText: 'Tên sản phẩm'),
-          onChanged: (val) => name = val,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Hủy'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              if (name.isEmpty) {
-                await showDialog(
-                  context: context,
-                  builder: (context) => AlertDialog(
-                    title: const Text('Thông báo'),
-                    content: const Text('Tên sản phẩm không được để trống!'),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        child: const Text('Đóng'),
-                      ),
-                    ],
-                  ),
-                );
-                return;
-              }
-              try {
-                final response = await widget.tenantClient
-                    .from('products_name')
-                    .insert({'products': name})
-                    .select('id, products')
-                    .single();
-                setState(() {
-                  final id = response['id'].toString();
-                  productMap[id] = name;
-                  productId = id;
-                  productName = name;
-                  productController.text = name;
-                  imei = '';
-                  imeiController.text = '';
-                  imeiError = null;
-                  imeiList = [];
-                  quantity = 0;
-                  quantityController.text = '0';
-                });
-                CacheUtil.cacheProductName(response['id'].toString(), name);
-                Navigator.pop(context);
-                await showDialog(
-                  context: context,
-                  builder: (context) => AlertDialog(
-                    title: const Text('Thông báo'),
-                    content: const Text('Đã thêm sản phẩm thành công'),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        child: const Text('Đóng'),
-                      ),
-                    ],
-                  ),
-                );
-              } catch (e) {
-                await showDialog(
-                  context: context,
-                  builder: (context) => AlertDialog(
-                    title: const Text('Thông báo'),
-                    content: Text('Lỗi khi thêm sản phẩm: $e'),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        child: const Text('Đóng'),
-                      ),
-                    ],
-                  ),
-                );
-              }
-            },
-            child: const Text('Lưu'),
-          ),
-        ],
-      ),
-    );
-  }
 
   void addToTicket(BuildContext scaffoldContext) async {
     if (customer == null ||
@@ -723,7 +700,7 @@ class _SaleFormState extends State<SaleForm> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       margin: const EdgeInsets.symmetric(vertical: 4),
-      height: isImeiField ? 48 : isImeiList ? 120 : isCustomerField ? 56 : 48,
+      height: isImeiField ? 72 : isImeiList ? 120 : isCustomerField ? 56 : 48, // Tăng chiều cao IMEI field từ 48 lên 72 (50%)
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(8),
@@ -930,105 +907,93 @@ class _SaleFormState extends State<SaleForm> {
                   style: const TextStyle(color: Colors.red),
                 ),
               ),
-            Row(
-              children: [
-                Expanded(
-                  child: wrapField(
-                    Autocomplete<String>(
-                      optionsBuilder: (TextEditingValue textEditingValue) {
-                        final query = textEditingValue.text.toLowerCase();
-                        if (query.isEmpty) {
-                          return productMap.values.take(10).toList();
+            wrapField(
+              Autocomplete<String>(
+                optionsBuilder: (TextEditingValue textEditingValue) {
+                  final query = textEditingValue.text.toLowerCase();
+                  if (query.isEmpty) {
+                    return productMap.values.take(10).toList();
+                  }
+                  final filtered = productMap.entries
+                      .where((entry) => entry.value.toLowerCase().contains(query))
+                      .map((entry) => entry.value)
+                      .toList()
+                    ..sort((a, b) {
+                      final aLower = a.toLowerCase();
+                      final bLower = b.toLowerCase();
+                      final aStartsWith = aLower.startsWith(query);
+                      final bStartsWith = bLower.startsWith(query);
+                      if (aStartsWith != bStartsWith) {
+                        return aStartsWith ? -1 : 1;
+                      }
+                      final aIndex = aLower.indexOf(query);
+                      final bIndex = bLower.indexOf(query);
+                      if (aIndex != bIndex) {
+                        return aIndex - bIndex;
+                      }
+                      return aLower.compareTo(bLower);
+                    });
+                  return filtered.isNotEmpty ? filtered.take(10).toList() : ['Không tìm thấy sản phẩm'];
+                },
+                onSelected: (String selection) {
+                  if (selection == 'Không tìm thấy sản phẩm') return;
+                  
+                  final selectedEntry = productMap.entries.firstWhere(
+                    (entry) => entry.value == selection,
+                    orElse: () => MapEntry('', ''),
+                  );
+                  
+                  if (selectedEntry.key.isNotEmpty) {
+                    setState(() {
+                      productId = selectedEntry.key;
+                      productName = selection;
+                      productController.text = selection;
+                      imei = '';
+                      imeiController.text = '';
+                      imeiError = null;
+                      imeiList = [];
+                      quantity = 0;
+                      quantityController.text = '0';
+                    });
+                    _fetchAvailableImeis('');
+                  }
+                },
+                fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
+                  controller.text = productController.text;
+                  return TextField(
+                    controller: controller,
+                    focusNode: focusNode,
+                    onChanged: (value) {
+                      setState(() {
+                        productController.text = value;
+                        if (value.isEmpty) {
+                          productId = null;
+                          productName = null;
+                          imei = '';
+                          imeiController.text = '';
+                          imeiError = null;
+                          imeiList = [];
+                          quantity = 0;
+                          quantityController.text = '0';
                         }
-                        final filtered = productMap.entries
-                            .where((entry) => entry.value.toLowerCase().contains(query))
-                            .map((entry) => entry.value)
-                            .toList()
-                          ..sort((a, b) {
-                            final aLower = a.toLowerCase();
-                            final bLower = b.toLowerCase();
-                            final aStartsWith = aLower.startsWith(query);
-                            final bStartsWith = bLower.startsWith(query);
-                            if (aStartsWith != bStartsWith) {
-                              return aStartsWith ? -1 : 1;
-                            }
-                            final aIndex = aLower.indexOf(query);
-                            final bIndex = bLower.indexOf(query);
-                            if (aIndex != bIndex) {
-                              return aIndex - bIndex;
-                            }
-                            return aLower.compareTo(bLower);
-                          });
-                        return filtered.isNotEmpty ? filtered.take(10).toList() : ['Không tìm thấy sản phẩm'];
-                      },
-                      onSelected: (String selection) {
-                        if (selection == 'Không tìm thấy sản phẩm') return;
-                        
-                        final selectedEntry = productMap.entries.firstWhere(
-                          (entry) => entry.value == selection,
-                          orElse: () => MapEntry('', ''),
-                        );
-                        
-                        if (selectedEntry.key.isNotEmpty) {
-                          setState(() {
-                            productId = selectedEntry.key;
-                            productName = selection;
-                            productController.text = selection;
-                            imei = '';
-                            imeiController.text = '';
-                            imeiError = null;
-                            imeiList = [];
-                            quantity = 0;
-                            quantityController.text = '0';
-                          });
-                          _fetchAvailableImeis('');
-                        }
-                      },
-                      fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
-                        controller.text = productController.text;
-                        return TextField(
-                          controller: controller,
-                          focusNode: focusNode,
-                          onChanged: (value) {
-                            setState(() {
-                              productController.text = value;
-                              if (value.isEmpty) {
-                                productId = null;
-                                productName = null;
-                                imei = '';
-                                imeiController.text = '';
-                                imeiError = null;
-                                imeiList = [];
-                                quantity = 0;
-                                quantityController.text = '0';
-                              }
-                            });
-                          },
-                          decoration: const InputDecoration(
-                            labelText: 'Sản phẩm',
-                            border: InputBorder.none,
-                            isDense: true,
-                            contentPadding: EdgeInsets.symmetric(vertical: 8, horizontal: 0),
-                            floatingLabelBehavior: FloatingLabelBehavior.auto,
-                            labelStyle: TextStyle(fontSize: 14),
-                          ),
-                        );
-                      },
+                      });
+                    },
+                    decoration: const InputDecoration(
+                      labelText: 'Sản phẩm',
+                      border: InputBorder.none,
+                      isDense: true,
+                      contentPadding: EdgeInsets.symmetric(vertical: 8, horizontal: 0),
+                      floatingLabelBehavior: FloatingLabelBehavior.auto,
+                      labelStyle: TextStyle(fontSize: 14),
                     ),
-                  ),
-                ),
-                IconButton(
-                  onPressed: addProductDialog,
-                  icon: const Icon(Icons.add_circle_outline),
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                ),
-              ],
+                  );
+                },
+              ),
             ),
             wrapField(
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              Column(
                 children: [
+                  // Phần nhập IMEI
                   Expanded(
                     child: Autocomplete<String>(
                       optionsBuilder: (TextEditingValue textEditingValue) {
@@ -1150,11 +1115,50 @@ class _SaleFormState extends State<SaleForm> {
                       },
                     ),
                   ),
-                  IconButton(
-                    onPressed: _scanQRCode,
-                    icon: const Icon(Icons.qr_code_scanner),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
+                  // 2 nút quét
+                  Row(
+                    children: [
+                      // Nút quét QR (màu vàng)
+                      Expanded(
+                        child: Container(
+                          height: 24, // Chiều cao bằng 1/2 của phần còn lại
+                          margin: const EdgeInsets.only(right: 4),
+                          child: ElevatedButton.icon(
+                            onPressed: _scanQRCode,
+                            icon: const Icon(Icons.qr_code_scanner, size: 16),
+                            label: const Text('QR', style: TextStyle(fontSize: 12)),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.amber,
+                              foregroundColor: Colors.black,
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      // Nút quét Text (màu xanh lá cây)
+                      Expanded(
+                        child: Container(
+                          height: 24, // Chiều cao bằng 1/2 của phần còn lại
+                          margin: const EdgeInsets.only(left: 4),
+                          child: ElevatedButton.icon(
+                            onPressed: _scanText,
+                            icon: const Icon(Icons.text_fields, size: 16),
+                            label: const Text('IMEI', style: TextStyle(fontSize: 12)),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.green,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),

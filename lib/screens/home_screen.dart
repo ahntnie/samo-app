@@ -85,6 +85,7 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _initializeNotifications();
     _loadSavedPreferences();
+    _checkAutoLogin();
   }
 
   Future<void> _initializeNotifications() async {
@@ -103,6 +104,21 @@ class _HomeScreenState extends State<HomeScreen> {
         passwordController.text = prefs.getString('home_password') ?? '';
       }
     });
+  }
+
+  Future<void> _checkAutoLogin() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedUsername = prefs.getString('home_username');
+    final savedPassword = prefs.getString('home_password');
+    final rememberPassword = prefs.getBool('home_rememberPassword') ?? false;
+    final hasDatabaseSession = prefs.getBool('has_database_session') ?? false;
+
+    if (savedUsername != null && savedPassword != null && rememberPassword && hasDatabaseSession) {
+      // Tự động đăng nhập tài khoản nhân sự
+      usernameController.text = savedUsername;
+      passwordController.text = savedPassword;
+      await loginSubAccount();
+    }
   }
 
   Future<void> _savePreferences() async {
@@ -149,6 +165,10 @@ class _HomeScreenState extends State<HomeScreen> {
       }
 
       await _savePreferences();
+      // Đánh dấu có session cơ sở dữ liệu
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('has_database_session', true);
+      
       setState(() {
         loggedInUsername = response['username'].toString();
         var rawPermissions = response['permissions'] ?? [];
@@ -163,6 +183,46 @@ class _HomeScreenState extends State<HomeScreen> {
         isLoading = false;
       });
     }
+  }
+
+  Future<void> _logoutSubAccount() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('has_database_session', false);
+    await prefs.remove('home_username');
+    await prefs.remove('home_password');
+    await prefs.setBool('home_rememberPassword', false);
+    
+    setState(() {
+      isSubAccountLoggedIn = false;
+      loggedInUsername = null;
+      permissions = [];
+      usernameController.clear();
+      passwordController.clear();
+    });
+  }
+
+  Future<void> _logoutCompletely() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('has_database_session', false);
+    await prefs.remove('home_username');
+    await prefs.remove('home_password');
+    await prefs.setBool('home_rememberPassword', false);
+    await prefs.remove('tenant_url');
+    await prefs.remove('tenant_anon_key');
+    await prefs.remove('login_email');
+    await prefs.remove('login_password');
+    await prefs.setBool('login_rememberPassword', false);
+    
+    setState(() {
+      isSubAccountLoggedIn = false;
+      loggedInUsername = null;
+      permissions = [];
+      usernameController.clear();
+      passwordController.clear();
+    });
+    
+    // Quay về màn hình login chính
+    Navigator.pushReplacementNamed(context, '/');
   }
 
   Widget _buildIconButton(
@@ -222,10 +282,25 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Text(
-                  'Làm Việc Chăm Chỉ Nhé',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    IconButton(
+                      onPressed: () async {
+                        await _logoutCompletely();
+                      },
+                      icon: const Icon(Icons.arrow_back, color: Colors.white),
+                      tooltip: 'Thoát hoàn toàn',
+                    ),
+                    const Expanded(
+                      child: Text(
+                        'Làm Việc Chăm Chỉ Nhé',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white),
+                      ),
+                    ),
+                    const SizedBox(width: 48), // Để cân bằng với nút back
+                  ],
                 ),
                 const SizedBox(height: 8),
                 const Text(
@@ -320,6 +395,40 @@ class _HomeScreenState extends State<HomeScreen> {
         backgroundColor: Colors.black,
         iconTheme: const IconThemeData(color: Colors.white),
         elevation: 4,
+        actions: [
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert, color: Colors.white),
+            onSelected: (value) async {
+              if (value == 'logout_subaccount') {
+                await _logoutSubAccount();
+              } else if (value == 'logout_complete') {
+                await _logoutCompletely();
+              }
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'logout_subaccount',
+                child: Row(
+                  children: [
+                    Icon(Icons.logout, color: Colors.orange),
+                    SizedBox(width: 8),
+                    Text('Thoát tài khoản nhân sự'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'logout_complete',
+                child: Row(
+                  children: [
+                    Icon(Icons.exit_to_app, color: Colors.red),
+                    SizedBox(width: 8),
+                    Text('Thoát hoàn toàn'),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
       body: Center(
         child: GridView.count(

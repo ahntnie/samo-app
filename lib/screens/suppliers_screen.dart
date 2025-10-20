@@ -666,6 +666,35 @@ class _SupplierDetailsDialogState extends State<SupplierDetailsDialog> {
 
       Sheet sheet = excel['GiaoDichNhaCungCap'];
 
+      // Thêm thông tin đối tác
+      final supplierName = widget.supplier['name']?.toString() ?? '';
+      final supplierPhone = widget.supplier['phone']?.toString() ?? '';
+      final supplierAddress = widget.supplier['address']?.toString() ?? '';
+      final debtVnd = widget.supplier['debt_vnd'] as num? ?? 0;
+      final debtCny = widget.supplier['debt_cny'] as num? ?? 0;
+      final debtUsd = widget.supplier['debt_usd'] as num? ?? 0;
+      final debtDetails = <String>[];
+      if (debtVnd != 0) debtDetails.add('${formatNumber(debtVnd)} VND');
+      if (debtCny != 0) debtDetails.add('${formatNumber(debtCny)} CNY');
+      if (debtUsd != 0) debtDetails.add('${formatNumber(debtUsd)} USD');
+      final debtText = debtDetails.isNotEmpty ? debtDetails.join(', ') : '0 VND';
+
+      sheet.cell(CellIndex.indexByString("A1")).value = TextCellValue('Tên nhà cung cấp: $supplierName');
+      sheet.cell(CellIndex.indexByString("A2")).value = TextCellValue('Số điện thoại: $supplierPhone');
+      sheet.cell(CellIndex.indexByString("A3")).value = TextCellValue('Địa chỉ: $supplierAddress');
+      sheet.cell(CellIndex.indexByString("A4")).value = TextCellValue('Công nợ: $debtText');
+      
+      int currentRow = 5;
+      
+      // Thêm thông tin bộ lọc thời gian nếu có
+      if (startDate != null && endDate != null) {
+        final startDateStr = formatDate(startDate!.toIso8601String());
+        final endDateStr = formatDate(endDate!.toIso8601String());
+        sheet.cell(CellIndex.indexByString("A$currentRow")).value = TextCellValue('Thời gian: Từ $startDateStr đến $endDateStr');
+        currentRow++;
+      }
+
+      // Thêm tiêu đề bảng
       List<TextCellValue> headers = [
         TextCellValue('Loại giao dịch'),
         TextCellValue('Ngày'),
@@ -681,7 +710,11 @@ class _SupplierDetailsDialogState extends State<SupplierDetailsDialog> {
         TextCellValue('Ghi chú'),
       ];
 
-      sheet.appendRow(headers);
+      for (int i = 0; i < headers.length; i++) {
+        final columnLetter = String.fromCharCode(65 + i);
+        sheet.cell(CellIndex.indexByString("${columnLetter}$currentRow")).value = headers[i];
+      }
+      currentRow++;
 
       for (int i = 0; i < exportTransactions.length; i++) {
         final transaction = exportTransactions[i];
@@ -721,7 +754,11 @@ class _SupplierDetailsDialogState extends State<SupplierDetailsDialog> {
           TextCellValue(note),
         ];
 
-        sheet.appendRow(row);
+        for (int j = 0; j < row.length; j++) {
+          final columnLetter = String.fromCharCode(65 + j);
+          sheet.cell(CellIndex.indexByString("${columnLetter}$currentRow")).value = row[j];
+        }
+        currentRow++;
       }
 
       Directory downloadsDir;
@@ -735,8 +772,8 @@ class _SupplierDetailsDialogState extends State<SupplierDetailsDialog> {
       }
 
       final now = DateTime.now();
-      final supplierName = widget.supplier['name']?.toString() ?? 'Unknown';
-      final fileName = 'Báo Cáo Giao Dịch Nhà Cung Cấp $supplierName ${now.day}_${now.month}_${now.year} ${now.hour}_${now.minute}_${now.second}.xlsx';
+      final supplierNameForFile = widget.supplier['name']?.toString() ?? 'Unknown';
+      final fileName = 'Báo Cáo Giao Dịch Nhà Cung Cấp $supplierNameForFile ${now.day}_${now.month}_${now.year} ${now.hour}_${now.minute}_${now.second}.xlsx';
       final filePath = '${downloadsDir.path}/$fileName';
       final file = File(filePath);
 
